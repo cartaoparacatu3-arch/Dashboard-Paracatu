@@ -2,10 +2,10 @@
 // DASHBOARD V21.1 - app.js — COM SUPABASE (MOBILE ADAPTADO)
 // ============================================================================
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbzd8C3CJFW-e2WX2xQF-k1ShxUlqyQnwcQGmhOn2XxVBSMPnJwAH4GX9ISrC3MRY2RIig/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwSJZCrAVjQpiXLnt-oAg0T6S8ehPoEyYoOhDRcl-5EbhcXW52xIfeQfLWw7tW5WGFilg/exec';
 
-const SUPABASE_URL  = 'https://vycjtmjvkwvxunxtkdyi.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5Y2p0bWp2a3d2eHVueHRrZHlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2MDY2OTYsImV4cCI6MjA4NzE4MjY5Nn0.wOoAZpA1i-320E8Rc-Ry6nk0KYsedFXb3aS4gkmbjHU';
+const SUPABASE_URL  = 'https://ddxhnoiqxtbfdrwhhcab.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkeGhub2lxeHRiZmRyd2hoY2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MjUyMjcsImV4cCI6MjEwMDUwMTIyN30.NBISCHsDQiDTkysd6TSxiU67kcM4Aspk01lD05rbtUM';
 
 const C = {
     green:'#00a651', greenFade:'rgba(0,166,81,0.12)',
