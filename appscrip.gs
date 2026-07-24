@@ -32,8 +32,8 @@ const MESES = [
 // ============================================================================
 
 // ⚠️ ATUALIZAR COM OS DADOS DO NOVO PROJETO SUPABASE
-const SUPABASE_URL = 'https://SEU_NOVO_PROJETO.supabase.co';
-const SUPABASE_KEY = 'SUA_NOVA_CHAVE_ANON';
+const SUPABASE_URL = 'https://ddxhnoiqxtbfdrwhhcab.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkeGhub2lxeHRiZmRyd2hoY2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MjUyMjcsImV4cCI6MjEwMDUwMTIyN30.NBISCHsDQiDTkysd6TSxiU67kcM4Aspk01lD05rbtUM';
 
 // ============================================================================
 // FUNÇÃO PRINCIPAL - doGet() PARA API
