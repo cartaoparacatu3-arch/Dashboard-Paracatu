@@ -1,5 +1,5 @@
 // ============================================================================
-// DASHBOARD V21.1 - app.js — COM SUPABASE (MOBILE ADAPTADO)
+// DASHBOARD V21.1 - app.js — COM SUPABASE (NOMES CORRETOS)
 // ============================================================================
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwSJZCrAVjQpiXLnt-oAg0T6S8ehPoEyYoOhDRcl-5EbhcXW52xIfeQfLWw7tW5WGFilg/exec';
@@ -15,7 +15,7 @@ const C = {
 };
 
 const RANKING_SETORES = ['VENDAS','RECEPCAO','REFILIACAO'];
-const SEM_FILTRO      = ['recorrencia']; // removeu recorrencia_vendedor e campanha14
+const SEM_FILTRO = ['recorrencia'];
 
 // ── Cache ──────────────────────────────────────────────────────────────────
 const CACHE_MEM  = new Map();
@@ -53,12 +53,41 @@ function invalidateCache(k){
 }
 
 // ============================================================================
-// CAMADA DE DADOS — Supabase primeiro, fallback Apps Script
+// CAMADA DE DADOS — Mapeamento de nomes
+// ============================================================================
+
+// Mapeamento: nome do front-end → nome da tabela no Supabase
+const SUPABASE_TABLES = {
+    'documentacao': 'qualidade_vendas',
+    'app': 'app_dashboard',
+    'adimplencia': 'qualidade_trocas',
+    'recorrencia': 'recorrência',  // atenção ao acento!
+    'refuturiza': 'refuturiza'
+};
+
+// Mapeamento reverso: tabela Supabase → nome front-end
+const FRONTEND_NAMES = {
+    'qualidade_vendas': 'documentacao',
+    'app_dashboard': 'app',
+    'qualidade_trocas': 'adimplencia',
+    'recorrência': 'recorrencia',
+    'refuturiza': 'refuturiza'
+};
+
+// ============================================================================
+// fetchSupabase — com nomes corretos
 // ============================================================================
 
 async function fetchSupabase(endpoint, mes, ano) {
     // campanha14 e recorrencia_vendedor removidos
     if (endpoint === 'campanha14' || endpoint === 'recorrencia_vendedor') return null;
+
+    // Pega o nome real da tabela no Supabase
+    const tabela = SUPABASE_TABLES[endpoint];
+    if (!tabela) {
+        console.warn(`[Supabase] Tabela não mapeada para endpoint: ${endpoint}`);
+        return null;
+    }
 
     try {
         let url;
@@ -66,89 +95,179 @@ async function fetchSupabase(endpoint, mes, ano) {
             'apikey': SUPABASE_ANON,
             'Authorization': `Bearer ${SUPABASE_ANON}`
         };
-        if (endpoint === 'app') {
-            url = `${SUPABASE_URL}/rest/v1/app_dashboard?mes=eq.${mes}&ano=eq.${ano}&select=*`;
+
+        if (endpoint === 'recorrencia') {
+            // Recorrência não tem filtro de mês/ano
+            url = `${SUPABASE_URL}/rest/v1/${tabela}?select=*&limit=1`;
         } else {
-            url = `${SUPABASE_URL}/rest/v1/${endpoint}?mes=eq.${mes}&ano=eq.${ano}&select=*`;
+            url = `${SUPABASE_URL}/rest/v1/${tabela}?mes=eq.${mes}&ano=eq.${ano}&select=*`;
         }
+
+        console.log(`[Supabase] Buscando ${tabela} (${mes}/${ano})`);
         const resp = await fetch(url, { headers });
-        if (!resp.ok) return null;
+        
+        if (!resp.ok) {
+            console.warn(`[Supabase] HTTP ${resp.status} para ${tabela}`);
+            return null;
+        }
+        
         const rows = await resp.json();
-        if (!rows || rows.length === 0) return null;
+        if (!rows || rows.length === 0) {
+            console.warn(`[Supabase] Nenhum dado encontrado para ${tabela}`);
+            return null;
+        }
+
+        // Converte os dados para o formato esperado pelo front-end
         return rowToData(endpoint, rows[0]);
-    } catch(_) {
+    } catch(err) {
+        console.error(`[Supabase] Erro em ${tabela}:`, err);
         return null;
     }
 }
 
+// ============================================================================
+// rowToData — converte dados do Supabase para formato front-end
+// ============================================================================
+
 function rowToData(endpoint, row) {
     if (!row) return null;
+
+    // --- qualidade_vendas (antigo documentacao) ---
     if (endpoint === 'documentacao') {
         const parseJ = v => typeof v === 'string' ? JSON.parse(v) : (v || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0});
         return {
-            mes: row.mes_nome, ano: row.ano,
+            mes: row.mes_nome, 
+            ano: row.ano,
             temColunasPromo: row.tem_promocao || false,
             geral: {
-                total: row.geral_total, cancelados: row.geral_cancelados||0,
-                aprovados: row.geral_aprovados, pendencias: row.geral_pendencias,
-                reprovados: row.geral_reprovados, expirado: row.geral_expirado,
-                pendente: row.geral_pendente, naoEnviado: row.geral_nao_enviado,
-                promo:  parseJ(row.geral_promo),
+                total: row.geral_total || 0, 
+                cancelados: row.geral_cancelados || 0,
+                aprovados: row.geral_aprovados || 0, 
+                pendencias: row.geral_pendencias || 0,
+                reprovados: row.geral_reprovados || 0, 
+                expirado: row.geral_expirado || 0,
+                pendente: row.geral_pendente || 0, 
+                naoEnviado: row.geral_nao_enviado || 0,
+                promo: parseJ(row.geral_promo),
                 normal: parseJ(row.geral_normal)
             },
             vendasLoja: {
-                total: row.loja_total, cancelados: row.loja_cancelados||0,
-                aprovados: row.loja_aprovados, pendencias: row.loja_pendencias,
-                reprovados: row.loja_reprovados, expirado: row.loja_expirado,
-                pendente: row.loja_pendente, naoEnviado: row.loja_nao_enviado,
-                promo:  parseJ(row.loja_promo),
+                total: row.loja_total || 0, 
+                cancelados: row.loja_cancelados || 0,
+                aprovados: row.loja_aprovados || 0, 
+                pendencias: row.loja_pendencias || 0,
+                reprovados: row.loja_reprovados || 0, 
+                expirado: row.loja_expirado || 0,
+                pendente: row.loja_pendente || 0, 
+                naoEnviado: row.loja_nao_enviado || 0,
+                promo: parseJ(row.loja_promo),
                 normal: parseJ(row.loja_normal)
             },
             vendasWeb: {
-                total: row.web_total, cancelados: row.web_cancelados||0,
-                aprovados: row.web_aprovados, pendencias: row.web_pendencias,
-                reprovados: row.web_reprovados, expirado: row.web_expirado,
-                pendente: row.web_pendente, naoEnviado: row.web_nao_enviado,
-                promo:  {total:0,cancelados:0,aprovados:0},
+                total: row.web_total || 0, 
+                cancelados: row.web_cancelados || 0,
+                aprovados: row.web_aprovados || 0, 
+                pendencias: row.web_pendencias || 0,
+                reprovados: row.web_reprovados || 0, 
+                expirado: row.web_expirado || 0,
+                pendente: row.web_pendente || 0, 
+                naoEnviado: row.web_nao_enviado || 0,
+                promo: {total:0,cancelados:0,aprovados:0},
                 normal: {total:0,cancelados:0,aprovados:0}
             },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : row.consultores
+            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || [])
         };
     }
+
+    // --- app_dashboard (antigo app) ---
     if (endpoint === 'app') {
         return {
-            mes: row.mes_nome, ano: row.ano,
-            geral: { total: row.geral_total, sim: row.geral_sim, nao: row.geral_nao, cancelado: row.geral_cancelado, outros: row.geral_outros },
-            appLoja: { total: row.loja_total, sim: row.loja_sim, nao: row.loja_nao, cancelado: row.loja_cancelado, outros: row.loja_outros },
-            appWeb: { total: row.web_total, sim: row.web_sim, nao: row.web_nao, cancelado: row.web_cancelado, outros: row.web_outros },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : row.consultores,
+            mes: row.mes_nome, 
+            ano: row.ano,
+            geral: { 
+                total: row.geral_total || 0, 
+                sim: row.geral_sim || 0, 
+                nao: row.geral_nao || 0, 
+                cancelado: row.geral_cancelado || 0, 
+                outros: row.geral_outros || 0 
+            },
+            appLoja: { 
+                total: row.loja_total || 0, 
+                sim: row.loja_sim || 0, 
+                nao: row.loja_nao || 0, 
+                cancelado: row.loja_cancelado || 0, 
+                outros: row.loja_outros || 0 
+            },
+            appWeb: { 
+                total: row.web_total || 0, 
+                sim: row.web_sim || 0, 
+                nao: row.web_nao || 0, 
+                cancelado: row.web_cancelado || 0, 
+                outros: row.web_outros || 0 
+            },
+            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || []),
             consultorasRetencao: typeof row.consultoras_retencao === 'string' ? JSON.parse(row.consultoras_retencao) : (row.consultoras_retencao || [])
         };
     }
+
+    // --- qualidade_trocas (antigo adimplencia) ---
     if (endpoint === 'adimplencia') {
         return {
-            mes: row.mes_nome, ano: row.ano,
-            geral: { totalTrocas: row.geral_total_trocas, mensOk: row.geral_mens_ok, mensAberto: row.geral_mens_aberto, mensAtraso: row.geral_mens_atraso, aprovados: row.geral_aprovados, pendentes: row.geral_pendentes, totalBi: row.geral_total_bi, foraBi: row.geral_fora_bi, okBi: row.geral_ok_bi, percentualAprovado: row.geral_percentual_aprovado },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : row.consultores
+            mes: row.mes_nome, 
+            ano: row.ano,
+            geral: { 
+                totalTrocas: row.geral_total_trocas || 0, 
+                mensOk: row.geral_mens_ok || 0, 
+                mensAberto: row.geral_mens_aberto || 0, 
+                mensAtraso: row.geral_mens_atraso || 0, 
+                aprovados: row.geral_aprovados || 0, 
+                pendentes: row.geral_pendentes || 0, 
+                totalBi: row.geral_total_bi || 0, 
+                foraBi: row.geral_fora_bi || 0, 
+                okBi: row.geral_ok_bi || 0, 
+                percentualAprovado: row.geral_percentual_aprovado || 0 
+            },
+            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || [])
         };
     }
+
+    // --- recorrência ---
     if (endpoint === 'recorrencia') {
-        return typeof row.dados === 'string' ? JSON.parse(row.dados) : row.dados;
+        return typeof row.dados === 'string' ? JSON.parse(row.dados) : (row.dados || {});
     }
+
+    // --- refuturiza ---
     if (endpoint === 'refuturiza') {
         return {
-            mes: row.mes_nome, ano: row.ano,
-            geral: { total: row.geral_total, comLigacao: row.geral_com_ligacao, semLigacao: row.geral_sem_ligacao, cancelado: row.geral_cancelado },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : row.consultores
+            mes: row.mes_nome, 
+            ano: row.ano,
+            geral: { 
+                total: row.geral_total || 0, 
+                comLigacao: row.geral_com_ligacao || 0, 
+                semLigacao: row.geral_sem_ligacao || 0, 
+                cancelado: row.geral_cancelado || 0 
+            },
+            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || [])
         };
     }
+
     return null;
 }
 
-async function fetchData(endpoint, mes, ano) {
-    const dadosSupabase = await fetchSupabase(endpoint, mes, ano);
-    if (dadosSupabase) return { status: 'success', data: dadosSupabase, fonte: 'supabase' };
+// ============================================================================
+// fetchData — tenta Supabase, fallback Apps Script
+// ============================================================================
 
+async function fetchData(endpoint, mes, ano) {
+    // Primeiro tenta Supabase
+    const dadosSupabase = await fetchSupabase(endpoint, mes, ano);
+    if (dadosSupabase) {
+        console.log(`[${endpoint}] Dados obtidos do Supabase`);
+        return { status: 'success', data: dadosSupabase, fonte: 'supabase' };
+    }
+
+    // Fallback: Apps Script
+    console.log(`[${endpoint}] Fallback para Apps Script`);
     const url = buildUrl(endpoint, mes, ano);
     try {
         const resp = await fetch(url);
@@ -156,7 +275,7 @@ async function fetchData(endpoint, mes, ano) {
             console.warn(`[Apps Script] HTTP ${resp.status} para endpoint "${endpoint}"`);
             return {
                 status: 'error',
-                error: `Servidor retornou erro ${resp.status}. Tente novamente em instantes.`
+                error: `Servidor retornou erro ${resp.status}.`
             };
         }
         const json = await resp.json();
@@ -167,14 +286,29 @@ async function fetchData(endpoint, mes, ano) {
         console.error(`[Apps Script] Falha no endpoint "${endpoint}":`, err);
         return {
             status: 'error',
-            error: isOffline
-                ? 'Sem conexão com a internet.'
-                : 'Não foi possível conectar ao servidor de dados.'
+            error: isOffline ? 'Sem conexão com a internet.' : 'Não foi possível conectar ao servidor.'
         };
     }
 }
 
-// ── Auto-refresh silencioso a cada 30min ──────────────────────────────────
+// ============================================================================
+// buildUrl — para Apps Script (fallback)
+// ============================================================================
+
+function buildUrl(ep, m, y) {
+    // Mapeamento para Apps Script (se necessário)
+    const endpointMap = {
+        'documentacao': 'qualidade_vendas',
+        'app': 'app_dashboard',
+        'adimplencia': 'qualidade_trocas'
+    };
+    const endpointReal = endpointMap[ep] || ep;
+    let u = `${API_URL}?endpoint=${endpointReal}`;
+    if (!SEM_FILTRO.includes(ep)) u += `&mes=${m}&ano=${y}`;
+    return u;
+}
+
+// ── Auto-refresh ──────────────────────────────────────────────────
 setInterval(() => {
     const k = cacheKey(currentDashboard, currentMonth, currentYear);
     invalidateCache(k);
@@ -201,7 +335,6 @@ async function silentRefresh(){
     }catch(_){}
 }
 
-function buildUrl(ep,m,y){ let u=`${API_URL}?endpoint=${ep}`; if(!SEM_FILTRO.includes(ep))u+=`&mes=${m}&ano=${y}`; return u; }
 function destroyChart(id){ if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];} }
 function createChart(id,cfg){ destroyChart(id); const ctx=document.getElementById(id); if(!ctx)return; chartInstances[id]=new Chart(ctx,cfg); }
 
@@ -213,7 +346,10 @@ const chartInstances = {};
 let dashboardBtns, monthSelect, yearSelect, dashboardContent,
     refreshBtn, downloadBtn, loadingEl, lastUpdateEl, periodSelector;
 
-// ── Init ───────────────────────────────────────────────────────────────────
+// ============================================================================
+// INIT
+// ============================================================================
+
 document.addEventListener('DOMContentLoaded', function(){
     Chart.defaults.font.family="'Plus Jakarta Sans', sans-serif";
     Chart.defaults.font.size=12; Chart.defaults.color='#5a7a65';
@@ -238,14 +374,18 @@ document.addEventListener('DOMContentLoaded', function(){
     monthSelect.value = currentMonth;
     yearSelect.value  = currentYear;
 
-    // ── Sidebar nav ────────────────────────────────────────────────────────
-    const topbarTitle = document.getElementById('topbarTitle');
-    const TITLES = {
-        resumo:'Resumo Geral', documentacao:'Vendas / Documentação',
-        app:'App', adimplencia:'Trocas', recorrencia:'Recorrência',
-        refuturiza:'Refuturiza'
-    };
+    // ── Títulos dos Dashboards ──────────────────────────────────────────
+const topbarTitle = document.getElementById('topbarTitle');
+const TITLES = {
+    resumo: 'Resumo Geral', 
+    documentacao: 'Vendas',  // ← mudou de "Qualidade Vendas" para "Vendas"
+    app: 'App', 
+    adimplencia: 'Trocas', 
+    recorrencia: 'Recorrência',
+    refuturiza: 'Refuturiza'
+};
 
+    // ── Sidebar nav ──────────────────────────────────────────────────────
     dashboardBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             dashboardBtns.forEach(b => b.classList.remove('active'));
@@ -268,7 +408,7 @@ document.addEventListener('DOMContentLoaded', function(){
     refreshBtn.addEventListener('click',   () => { invalidateCache(cacheKey(currentDashboard, currentMonth, currentYear)); loadDashboard(); });
     downloadBtn.addEventListener('click',  exportPage);
 
-    // ── Elementos ─────────────────────────────────────────────────────────
+    // ── Sidebar ─────────────────────────────────────────────────────────
     const sidebar        = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     const sidebarToggle  = document.getElementById('sidebarToggle');
@@ -324,7 +464,10 @@ document.addEventListener('DOMContentLoaded', function(){
     initPeriodModal();
 });
 
-// ── loadDashboard ──────────────────────────────────────────────────────────
+// ============================================================================
+// LOAD DASHBOARD
+// ============================================================================
+
 async function loadDashboard(){
     if(currentDashboard === 'resumo'){ await loadResumoDashboard(); return; }
 
@@ -384,7 +527,10 @@ function renderDashboard(){
     }
 }
 
-// ── loadResumoDashboard ────────────────────────────────────────────────────
+// ============================================================================
+// RESUMO
+// ============================================================================
+
 async function loadResumoDashboard(){
     const eps     = ['documentacao','app','adimplencia'];
     const results = {};
@@ -404,23 +550,21 @@ async function loadResumoDashboard(){
         return;
     }
 
-    let loaded = 0;
     showSkeleton();
 
     await Promise.all(eps.map(async ep => {
         const k = cacheKey(ep, currentMonth, currentYear);
         const cached = getCached(k);
-        if(cached){ results[ep] = cached; loaded++; return; }
+        if(cached){ results[ep] = cached; return; }
         try{
             const r = await fetchData(ep, currentMonth, currentYear);
             if(r.status==='success'){ setCache(k, r.data); results[ep]=r.data; }
         }catch(_){}
-        loaded++;
     }));
 
     hideSkeleton();
     if(!results['documentacao']){
-        showError('Não foi possível carregar os dados de Vendas. Verifique a conexão e tente novamente.', true);
+        showError('Não foi possível carregar os dados de Qualidade Vendas. Verifique a conexão e tente novamente.', true);
         return;
     }
     renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
@@ -432,8 +576,9 @@ function updateLastUpdateTime(){
 }
 
 // ============================================================================
-// RESUMO
+// RESUMO - RENDER
 // ============================================================================
+
 function renderResumoDashboard(vendas, app, adim){
     const { geral, consultores, mes, ano } = vendas;
     const pAprov = calcPercentDoc(geral.aprovados, geral.total, geral.cancelados||0);
@@ -502,7 +647,7 @@ function buildRankingCompleto(consultores, mes, ano){
 }
 
 // ============================================================================
-// DASHBOARD: VENDAS
+// DASHBOARD: QUALIDADE VENDAS (antigo documentacao)
 // ============================================================================
 
 function calcPercentDoc(aprovados, total, cancelados) {
@@ -579,19 +724,22 @@ function promoSection(d, temPromo) {
 function renderDocumentacaoDashboard(d) {
     const { geral, vendasLoja, vendasWeb, consultores, mes, ano, temColunasPromo } = d;
 
-    const pG = calcPercentDoc(geral.aprovados,      geral.total,      geral.cancelados||0);
-    const pL = calcPercentDoc(vendasLoja.aprovados,  vendasLoja.total, vendasLoja.cancelados||0);
-    const pW = calcPercentDoc(vendasWeb.aprovados,   vendasWeb.total,  vendasWeb.cancelados||0);
+    const pG = calcPercentDoc(geral.aprovados, geral.total, geral.cancelados||0);
+    const pL = calcPercentDoc(vendasLoja.aprovados, vendasLoja.total, vendasLoja.cancelados||0);
+    const pW = calcPercentDoc(vendasWeb.aprovados, vendasWeb.total, vendasWeb.cancelados||0);
 
     const bySector = groupBySector(consultores);
     const sectors  = sortSectors(Object.keys(bySector), ['VENDAS','RECEPCAO','REFILIACAO','WEB SITE','TELEVENDAS','OUTROS']);
 
-    dashboardContent.innerHTML = `
-    <h2 class="dash-title"><i class="fas fa-folder" style="color:var(--primary)"></i> Dashboard de Vendas — ${mes} ${ano}</h2>
+   dashboardContent.innerHTML = `
+    <h2 class="dash-title"><i class="fas fa-folder" style="color:var(--primary)"></i> Dashboard Vendas — ${mes} ${ano}</h2>
+    <!-- ... resto do HTML ... -->
+    `;
+}
     <div class="main-cards">
-        ${cardDoc('Total de Vendas', 'fas fa-chart-bar', geral,      pG)}
-        ${cardDoc('Vendas Loja',     'fas fa-store',     vendasLoja, pL)}
-        ${cardDoc('Vendas Web/Tele', 'fas fa-globe',     vendasWeb,  pW)}
+        ${cardDoc('Total de Vendas', 'fas fa-chart-bar', geral, pG)}
+        ${cardDoc('Vendas Loja', 'fas fa-store', vendasLoja, pL)}
+        ${cardDoc('Vendas Web/Tele', 'fas fa-globe', vendasWeb, pW)}
     </div>
     ${promoSection(d, temColunasPromo)}
     <h3 class="section-title"><i class="fas fa-layer-group" style="color:var(--primary)"></i> Desempenho por Setor</h3>
@@ -623,10 +771,10 @@ function renderDocumentacaoDashboard(d) {
                             ${metricItem('Total',        c.total)}
                             ${metricItem('Cancelados',   c.cancelados||0, '#991b1b')}
                             ${metricItem('Base líquida', c.total-(c.cancelados||0))}
-                            ${metricItem('Aprovados',    c.aprovados,     'var(--success)')}
-                            ${metricItem('Pendências',   c.pendencias,    'var(--danger)')}
-                            ${metricItem('Não Enviado',  c.naoEnviado,    'var(--warning)')}
-                            ${metricItem('Expirado',     c.expirado,      'var(--gray)')}
+                            ${metricItem('Aprovados',    c.aprovados, 'var(--success)')}
+                            ${metricItem('Pendências',   c.pendencias, 'var(--danger)')}
+                            ${metricItem('Não Enviado',  c.naoEnviado, 'var(--warning)')}
+                            ${metricItem('Expirado',     c.expirado, 'var(--gray)')}
                             ${metricPercent('% Aprovados', p)}
                         </div>
                         ${temColunasPromo ? promoMiniCards(c) : ''}
@@ -647,13 +795,13 @@ function cardDoc(t, icon, d, pct) {
             <div class="card-icon"><i class="${icon}"></i></div>
         </div>
         <div class="metric-grid">
-            ${metricItem('Total Vendas',  d.total)}
-            ${metricItem('Cancelados',    canc,          '#991b1b')}
-            ${metricItem('Base Líquida',  base)}
-            ${metricItem('Aprovados',     d.aprovados,   'var(--success)')}
-            ${metricItem('Pendências',    d.pendencias,  'var(--danger)')}
-            ${metricItem('Não Enviado',   d.naoEnviado,  'var(--warning)')}
-            ${metricItem('Expirado',      d.expirado,    'var(--gray)')}
+            ${metricItem('Total Vendas', d.total)}
+            ${metricItem('Cancelados', canc, '#991b1b')}
+            ${metricItem('Base Líquida', base)}
+            ${metricItem('Aprovados', d.aprovados, 'var(--success)')}
+            ${metricItem('Pendências', d.pendencias, 'var(--danger)')}
+            ${metricItem('Não Enviado', d.naoEnviado, 'var(--warning)')}
+            ${metricItem('Expirado', d.expirado, 'var(--gray)')}
             ${metricPercent('% Aprovados', pct)}
         </div>
     </div>`;
@@ -662,6 +810,7 @@ function cardDoc(t, icon, d, pct) {
 // ============================================================================
 // DASHBOARD: APP
 // ============================================================================
+
 function renderAppDashboard(d){
     const {geral,appLoja,appWeb,consultores,consultorasRetencao,mes,ano}=d;
     const pG=calcPercent(geral.sim,geral.total),pL=calcPercent(appLoja.sim,appLoja.total),pW=calcPercent(appWeb.sim,appWeb.total);
@@ -680,6 +829,7 @@ function cardApp(t,icon,d,pct){ return `<div class="card card-app"><div class="c
 // ============================================================================
 // DASHBOARD: TROCAS
 // ============================================================================
+
 function renderAdimplenciaDashboard(d){
     const {geral,consultores,mes,ano}=d;
     dashboardContent.innerHTML=`
@@ -692,6 +842,7 @@ function renderAdimplenciaDashboard(d){
 // ============================================================================
 // DASHBOARD: RECORRÊNCIA
 // ============================================================================
+
 function renderRecorrenciaDashboard(d){
     const {retencao,refiliacao,periodo}=d;
     const retKeys=Object.keys(retencao),refKeys=Object.keys(refiliacao);
@@ -707,6 +858,7 @@ function renderRecorrenciaDashboard(d){
 // ============================================================================
 // DASHBOARD: REFUTURIZA
 // ============================================================================
+
 function renderRefuturizaDashboard(d){
     const {geral,consultores,mes,ano}=d;
     if(!geral||!consultores){showError('Dados do Refuturiza não encontrados');return;}
@@ -718,8 +870,9 @@ function renderRefuturizaDashboard(d){
 }
 
 // ============================================================================
-// HELPERS GERAIS
+// HELPERS
 // ============================================================================
+
 function metricItem(l,v,c){ const s=c?`style="color:${c};"`:''; return `<div class="metric-item"><div class="metric-label">${l}</div><div class="metric-value" ${s}>${v??0}</div></div>`; }
 function metricPercent(l,v){ const cls=getPercentClass(typeof v==='number'?v:parseInt(v)); return `<div class="metric-item"><div class="metric-label">${l}</div><div class="metric-percent ${cls}">${v}%</div></div>`; }
 function metricItemWhite(l,v){ return `<div class="metric-item"><div class="metric-label" style="color:rgba(255,255,255,0.75)">${l}</div><div class="metric-value" style="color:white">${v}</div></div>`; }
@@ -732,7 +885,7 @@ function getSectorIcon(s){ switch((s||'').toUpperCase()){case 'VENDAS':return 'f
 function scalesXY(){ return {x:{grid:{display:false},border:{display:false}},y:{grid:{color:C.border},border:{display:false}}}; }
 function legendTop(){ return {position:'top',labels:{boxWidth:12,padding:14}}; }
 
-// ── Skeleton loading ──────────────────────────────────────────────────────
+// ── Skeleton ──────────────────────────────────────────────────────────────
 function showSkeleton(){
     if(loadingEl) loadingEl.style.display='none';
     let sk = document.getElementById('skeletonLoader');
@@ -786,9 +939,7 @@ function showError(msg, podeRetentar=true){
     const online = navigator.onLine;
     const iconeCor = online ? '#f59e0b' : '#ef4444';
     const icone    = online ? 'fa-exclamation-triangle' : 'fa-wifi';
-    const dica     = online
-        ? 'Os dados podem estar indisponíveis no momento.'
-        : 'Verifique sua conexão com a internet.';
+    const dica     = online ? 'Os dados podem estar indisponíveis no momento.' : 'Verifique sua conexão com a internet.';
 
     dashboardContent.innerHTML = `
     <div class="error-message">
@@ -799,18 +950,13 @@ function showError(msg, podeRetentar=true){
         <p style="color:var(--text-muted);margin-bottom:4px">${msg}</p>
         <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:20px">${dica}</p>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-            ${podeRetentar ? `<button class="btn" onclick="loadDashboard()"
-                style="background:#ef4444;color:white;padding:10px 20px">
-                <i class="fas fa-redo"></i> Tentar novamente
-            </button>` : ''}
-            <button class="btn btn-topbar-refresh" onclick="currentDashboard='resumo';loadDashboard()">
-                <i class="fas fa-home"></i> Voltar ao início
-            </button>
+            ${podeRetentar ? `<button class="btn" onclick="loadDashboard()" style="background:#ef4444;color:white;padding:10px 20px"><i class="fas fa-redo"></i> Tentar novamente</button>` : ''}
+            <button class="btn btn-topbar-refresh" onclick="currentDashboard='resumo';loadDashboard()"><i class="fas fa-home"></i> Voltar ao início</button>
         </div>
     </div>`;
 }
 
-// ── Modal de período para mobile ───────────────────────────────────────────
+// ── Period Modal ──────────────────────────────────────────────────────────
 function initPeriodModal(){
     const fab = document.createElement('button');
     fab.id = 'periodFab';
@@ -824,10 +970,7 @@ function initPeriodModal(){
         <div class="period-modal-backdrop" id="periodModalBackdrop"></div>
         <div class="period-modal-sheet">
             <div class="period-modal-handle"></div>
-            <div class="period-modal-title">
-                <i class="fas fa-calendar-alt" style="color:var(--primary)"></i>
-                Selecionar Período
-            </div>
+            <div class="period-modal-title"><i class="fas fa-calendar-alt" style="color:var(--primary)"></i> Selecionar Período</div>
             <div class="period-modal-body">
                 <div class="select-group" style="width:100%">
                     <label>Mês</label>
@@ -844,9 +987,7 @@ function initPeriodModal(){
                     <label>Ano</label>
                     <select id="yearSelectMobile"></select>
                 </div>
-                <button class="btn btn-topbar-refresh" id="applyPeriodBtn" style="width:100%;justify-content:center;padding:12px">
-                    <i class="fas fa-check"></i> Aplicar
-                </button>
+                <button class="btn btn-topbar-refresh" id="applyPeriodBtn" style="width:100%;justify-content:center;padding:12px"><i class="fas fa-check"></i> Aplicar</button>
             </div>
         </div>`;
     document.body.appendChild(modal);
@@ -863,7 +1004,7 @@ function initPeriodModal(){
         const mm = document.getElementById('monthSelectMobile');
         const ym = document.getElementById('yearSelectMobile');
         if(mm) mm.value = currentMonth;
-        if(ym) ym.value  = currentYear;
+        if(ym) ym.value = currentYear;
     }
 
     function openModal(){
@@ -883,9 +1024,9 @@ function initPeriodModal(){
         const mm = document.getElementById('monthSelectMobile');
         const ym = document.getElementById('yearSelectMobile');
         currentMonth = parseInt(mm.value);
-        currentYear  = parseInt(ym.value);
+        currentYear = parseInt(ym.value);
         if(monthSelect) monthSelect.value = currentMonth;
-        if(yearSelect)  yearSelect.value  = currentYear;
+        if(yearSelect) yearSelect.value = currentYear;
         closeModal();
         loadDashboard();
     });
