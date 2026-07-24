@@ -70,10 +70,8 @@ const SUPABASE_TABLES = {
 // ============================================================================
 
 async function fetchSupabase(endpoint, mes, ano) {
-    // campanha14 e recorrencia_vendedor removidos
     if (endpoint === 'campanha14' || endpoint === 'recorrencia_vendedor') return null;
 
-    // Pega o nome real da tabela no Supabase
     const tabela = SUPABASE_TABLES[endpoint];
     if (!tabela) {
         console.warn(`[Supabase] Tabela não mapeada para endpoint: ${endpoint}`);
@@ -88,7 +86,6 @@ async function fetchSupabase(endpoint, mes, ano) {
         };
 
         if (endpoint === 'recorrencia') {
-            // Recorrência não tem filtro de mês/ano
             url = `${SUPABASE_URL}/rest/v1/${tabela}?select=*&limit=1`;
         } else {
             url = `${SUPABASE_URL}/rest/v1/${tabela}?mes=eq.${mes}&ano=eq.${ano}&select=*`;
@@ -108,7 +105,6 @@ async function fetchSupabase(endpoint, mes, ano) {
             return null;
         }
 
-        // Converte os dados para o formato esperado pelo front-end
         return rowToData(endpoint, rows[0]);
     } catch(err) {
         console.error(`[Supabase] Erro em ${tabela}:`, err);
@@ -126,99 +122,147 @@ function rowToData(endpoint, row) {
     // --- qualidade_vendas (antigo documentacao) ---
     if (endpoint === 'documentacao') {
         const parseJ = v => typeof v === 'string' ? JSON.parse(v) : (v || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0});
+        
+        // 🔥 CORREÇÃO: Processa os consultores garantindo o campo 'setor'
+        let consultores = [];
+        const rawConsultores = row.consultores || [];
+        
+        if (typeof rawConsultores === 'string') {
+            try {
+                consultores = JSON.parse(rawConsultores);
+            } catch(e) {
+                consultores = [];
+            }
+        } else if (Array.isArray(rawConsultores)) {
+            consultores = rawConsultores;
+        } else if (typeof rawConsultores === 'object') {
+            consultores = Object.values(rawConsultores);
+        }
+        
+        // 🔥 CORREÇÃO: Mapeia setorOriginal → setor
+        consultores = consultores.map(c => {
+            const setor = c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS';
+            return {
+                ...c,
+                setor: setor.toUpperCase(),
+                setorOriginal: c.setorOriginal || setor,
+                setorExibicao: c.setorExibicao || setor
+            };
+        });
+
         return {
-            mes: row.mes_nome, 
-            ano: row.ano,
-            temColunasPromo: row.tem_promocao || false,
+            mes: row.mes_nome || row.mes || 'Julho', 
+            ano: row.ano || 2026,
+            temColunasPromo: row.temColunasPromo || false,
             geral: {
-                total: row.geral_total || 0, 
-                cancelados: row.geral_cancelados || 0,
-                aprovados: row.geral_aprovados || 0, 
-                pendencias: row.geral_pendencias || 0,
-                reprovados: row.geral_reprovados || 0, 
-                expirado: row.geral_expirado || 0,
-                pendente: row.geral_pendente || 0, 
-                naoEnviado: row.geral_nao_enviado || 0,
-                promo: parseJ(row.geral_promo),
-                normal: parseJ(row.geral_normal)
+                total: row.geral?.total || 0, 
+                cancelados: row.geral?.cancelados || 0,
+                aprovados: row.geral?.aprovados || 0, 
+                pendencias: row.geral?.pendencias || 0,
+                reprovados: row.geral?.reprovados || 0, 
+                expirado: row.geral?.expirado || 0,
+                pendente: row.geral?.pendente || 0, 
+                naoEnviado: row.geral?.naoEnviado || 0,
+                promo: row.geral?.promo || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0},
+                normal: row.geral?.normal || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0}
             },
             vendasLoja: {
-                total: row.loja_total || 0, 
-                cancelados: row.loja_cancelados || 0,
-                aprovados: row.loja_aprovados || 0, 
-                pendencias: row.loja_pendencias || 0,
-                reprovados: row.loja_reprovados || 0, 
-                expirado: row.loja_expirado || 0,
-                pendente: row.loja_pendente || 0, 
-                naoEnviado: row.loja_nao_enviado || 0,
-                promo: parseJ(row.loja_promo),
-                normal: parseJ(row.loja_normal)
+                total: row.vendasLoja?.total || 0, 
+                cancelados: row.vendasLoja?.cancelados || 0,
+                aprovados: row.vendasLoja?.aprovados || 0, 
+                pendencias: row.vendasLoja?.pendencias || 0,
+                reprovados: row.vendasLoja?.reprovados || 0, 
+                expirado: row.vendasLoja?.expirado || 0,
+                pendente: row.vendasLoja?.pendente || 0, 
+                naoEnviado: row.vendasLoja?.naoEnviado || 0,
+                promo: row.vendasLoja?.promo || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0},
+                normal: row.vendasLoja?.normal || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0}
             },
             vendasWeb: {
-                total: row.web_total || 0, 
-                cancelados: row.web_cancelados || 0,
-                aprovados: row.web_aprovados || 0, 
-                pendencias: row.web_pendencias || 0,
-                reprovados: row.web_reprovados || 0, 
-                expirado: row.web_expirado || 0,
-                pendente: row.web_pendente || 0, 
-                naoEnviado: row.web_nao_enviado || 0,
-                promo: {total:0,cancelados:0,aprovados:0},
-                normal: {total:0,cancelados:0,aprovados:0}
+                total: row.vendasWeb?.total || 0, 
+                cancelados: row.vendasWeb?.cancelados || 0,
+                aprovados: row.vendasWeb?.aprovados || 0, 
+                pendencias: row.vendasWeb?.pendencias || 0,
+                reprovados: row.vendasWeb?.reprovados || 0, 
+                expirado: row.vendasWeb?.expirado || 0,
+                pendente: row.vendasWeb?.pendente || 0, 
+                naoEnviado: row.vendasWeb?.naoEnviado || 0,
+                promo: row.vendasWeb?.promo || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0},
+                normal: row.vendasWeb?.normal || {total:0,cancelados:0,aprovados:0,reprovados:0,expirado:0,pendente:0,naoEnviado:0}
             },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || [])
+            consultores: consultores,
+            consultoresPorSetor: row.consultoresPorSetor || {},
+            totalFuncionariosAtivos: row.totalFuncionariosAtivos || 0
         };
     }
 
     // --- app_dashboard (antigo app) ---
     if (endpoint === 'app') {
+        let consultores = typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || []);
+        consultores = consultores.map(c => {
+            const setor = c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS';
+            return {
+                ...c,
+                setor: setor.toUpperCase()
+            };
+        });
+        
         return {
-            mes: row.mes_nome, 
+            mes: row.mes_nome || row.mes, 
             ano: row.ano,
             geral: { 
-                total: row.geral_total || 0, 
-                sim: row.geral_sim || 0, 
-                nao: row.geral_nao || 0, 
-                cancelado: row.geral_cancelado || 0, 
-                outros: row.geral_outros || 0 
+                total: row.geral?.total || 0, 
+                sim: row.geral?.sim || 0, 
+                nao: row.geral?.nao || 0, 
+                cancelado: row.geral?.cancelado || 0, 
+                outros: row.geral?.outros || 0 
             },
             appLoja: { 
-                total: row.loja_total || 0, 
-                sim: row.loja_sim || 0, 
-                nao: row.loja_nao || 0, 
-                cancelado: row.loja_cancelado || 0, 
-                outros: row.loja_outros || 0 
+                total: row.appLoja?.total || row.loja_total || 0, 
+                sim: row.appLoja?.sim || row.loja_sim || 0, 
+                nao: row.appLoja?.nao || row.loja_nao || 0, 
+                cancelado: row.appLoja?.cancelado || row.loja_cancelado || 0, 
+                outros: row.appLoja?.outros || row.loja_outros || 0 
             },
             appWeb: { 
-                total: row.web_total || 0, 
-                sim: row.web_sim || 0, 
-                nao: row.web_nao || 0, 
-                cancelado: row.web_cancelado || 0, 
-                outros: row.web_outros || 0 
+                total: row.appWeb?.total || row.web_total || 0, 
+                sim: row.appWeb?.sim || row.web_sim || 0, 
+                nao: row.appWeb?.nao || row.web_nao || 0, 
+                cancelado: row.appWeb?.cancelado || row.web_cancelado || 0, 
+                outros: row.appWeb?.outros || row.web_outros || 0 
             },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || []),
+            consultores: consultores,
             consultorasRetencao: typeof row.consultoras_retencao === 'string' ? JSON.parse(row.consultoras_retencao) : (row.consultoras_retencao || [])
         };
     }
 
     // --- qualidade_trocas (antigo adimplencia) ---
     if (endpoint === 'adimplencia') {
+        let consultores = typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || []);
+        consultores = consultores.map(c => {
+            const setor = c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS';
+            return {
+                ...c,
+                setor: setor.toUpperCase()
+            };
+        });
+        
         return {
-            mes: row.mes_nome, 
+            mes: row.mes_nome || row.mes, 
             ano: row.ano,
             geral: { 
-                totalTrocas: row.geral_total_trocas || 0, 
-                mensOk: row.geral_mens_ok || 0, 
-                mensAberto: row.geral_mens_aberto || 0, 
-                mensAtraso: row.geral_mens_atraso || 0, 
-                aprovados: row.geral_aprovados || 0, 
-                pendentes: row.geral_pendentes || 0, 
-                totalBi: row.geral_total_bi || 0, 
-                foraBi: row.geral_fora_bi || 0, 
-                okBi: row.geral_ok_bi || 0, 
-                percentualAprovado: row.geral_percentual_aprovado || 0 
+                totalTrocas: row.geral?.totalTrocas || row.geral_total_trocas || 0, 
+                mensOk: row.geral?.mensOk || row.geral_mens_ok || 0, 
+                mensAberto: row.geral?.mensAberto || row.geral_mens_aberto || 0, 
+                mensAtraso: row.geral?.mensAtraso || row.geral_mens_atraso || 0, 
+                aprovados: row.geral?.aprovados || row.geral_aprovados || 0, 
+                pendentes: row.geral?.pendentes || row.geral_pendentes || 0, 
+                totalBi: row.geral?.totalBi || row.geral_total_bi || 0, 
+                foraBi: row.geral?.foraBi || row.geral_fora_bi || 0, 
+                okBi: row.geral?.okBi || row.geral_ok_bi || 0, 
+                percentualAprovado: row.geral?.percentualAprovado || row.geral_percentual_aprovado || 0 
             },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || [])
+            consultores: consultores
         };
     }
 
@@ -229,16 +273,25 @@ function rowToData(endpoint, row) {
 
     // --- refuturiza ---
     if (endpoint === 'refuturiza') {
+        let consultores = typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || []);
+        consultores = consultores.map(c => {
+            const setor = c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS';
+            return {
+                ...c,
+                setor: setor.toUpperCase()
+            };
+        });
+        
         return {
-            mes: row.mes_nome, 
+            mes: row.mes_nome || row.mes, 
             ano: row.ano,
             geral: { 
-                total: row.geral_total || 0, 
-                comLigacao: row.geral_com_ligacao || 0, 
-                semLigacao: row.geral_sem_ligacao || 0, 
-                cancelado: row.geral_cancelado || 0 
+                total: row.geral?.total || row.geral_total || 0, 
+                comLigacao: row.geral?.comLigacao || row.geral_com_ligacao || 0, 
+                semLigacao: row.geral?.semLigacao || row.geral_sem_ligacao || 0, 
+                cancelado: row.geral?.cancelado || row.geral_cancelado || 0 
             },
-            consultores: typeof row.consultores === 'string' ? JSON.parse(row.consultores) : (row.consultores || [])
+            consultores: consultores
         };
     }
 
@@ -250,14 +303,12 @@ function rowToData(endpoint, row) {
 // ============================================================================
 
 async function fetchData(endpoint, mes, ano) {
-    // Primeiro tenta Supabase
     const dadosSupabase = await fetchSupabase(endpoint, mes, ano);
     if (dadosSupabase) {
         console.log(`[${endpoint}] Dados obtidos do Supabase`);
         return { status: 'success', data: dadosSupabase, fonte: 'supabase' };
     }
 
-    // Fallback: Apps Script
     console.log(`[${endpoint}] Fallback para Apps Script`);
     const url = buildUrl(endpoint, mes, ano);
     try {
@@ -287,7 +338,6 @@ async function fetchData(endpoint, mes, ano) {
 // ============================================================================
 
 function buildUrl(ep, m, y) {
-    // Mapeamento para Apps Script (se necessário)
     const endpointMap = {
         'documentacao': 'qualidade_vendas',
         'app': 'app_dashboard',
@@ -355,7 +405,6 @@ document.addEventListener('DOMContentLoaded', function(){
     lastUpdateEl     = document.getElementById('lastUpdate');
     periodSelector   = document.getElementById('periodSelector');
 
-    // ── Anos ──────────────────────────────────────────────────────────────
     const anoAtual = new Date().getFullYear();
     for(let y = anoAtual; y >= anoAtual - 3; y--){
         const opt = document.createElement('option');
@@ -365,7 +414,6 @@ document.addEventListener('DOMContentLoaded', function(){
     monthSelect.value = currentMonth;
     yearSelect.value  = currentYear;
 
-    // ── Títulos dos Dashboards ──────────────────────────────────────────
     const topbarTitle = document.getElementById('topbarTitle');
     const TITLES = {
         resumo: 'Resumo Geral', 
@@ -376,7 +424,6 @@ document.addEventListener('DOMContentLoaded', function(){
         refuturiza: 'Refuturiza'
     };
 
-    // ── Sidebar nav ──────────────────────────────────────────────────────
     dashboardBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             dashboardBtns.forEach(b => b.classList.remove('active'));
@@ -399,7 +446,6 @@ document.addEventListener('DOMContentLoaded', function(){
     refreshBtn.addEventListener('click',   () => { invalidateCache(cacheKey(currentDashboard, currentMonth, currentYear)); loadDashboard(); });
     downloadBtn.addEventListener('click',  exportPage);
 
-    // ── Sidebar ─────────────────────────────────────────────────────────
     const sidebar        = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     const sidebarToggle  = document.getElementById('sidebarToggle');
