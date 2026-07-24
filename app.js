@@ -61,16 +61,7 @@ const SUPABASE_TABLES = {
     'documentacao': 'qualidade_vendas',
     'app': 'app_dashboard',
     'adimplencia': 'qualidade_trocas',
-    'recorrencia': 'recorrência',  // atenção ao acento!
-    'refuturiza': 'refuturiza'
-};
-
-// Mapeamento reverso: tabela Supabase → nome front-end
-const FRONTEND_NAMES = {
-    'qualidade_vendas': 'documentacao',
-    'app_dashboard': 'app',
-    'qualidade_trocas': 'adimplencia',
-    'recorrência': 'recorrencia',
+    'recorrencia': 'recorrência',
     'refuturiza': 'refuturiza'
 };
 
@@ -375,15 +366,15 @@ document.addEventListener('DOMContentLoaded', function(){
     yearSelect.value  = currentYear;
 
     // ── Títulos dos Dashboards ──────────────────────────────────────────
-const topbarTitle = document.getElementById('topbarTitle');
-const TITLES = {
-    resumo: 'Resumo Geral', 
-    documentacao: 'Vendas',  // ← mudou de "Qualidade Vendas" para "Vendas"
-    app: 'App', 
-    adimplencia: 'Trocas', 
-    recorrencia: 'Recorrência',
-    refuturiza: 'Refuturiza'
-};
+    const topbarTitle = document.getElementById('topbarTitle');
+    const TITLES = {
+        resumo: 'Resumo Geral', 
+        documentacao: 'Vendas',
+        app: 'App', 
+        adimplencia: 'Trocas', 
+        recorrencia: 'Recorrência',
+        refuturiza: 'Refuturiza'
+    };
 
     // ── Sidebar nav ──────────────────────────────────────────────────────
     dashboardBtns.forEach(btn => {
@@ -564,7 +555,7 @@ async function loadResumoDashboard(){
 
     hideSkeleton();
     if(!results['documentacao']){
-        showError('Não foi possível carregar os dados de Qualidade Vendas. Verifique a conexão e tente novamente.', true);
+        showError('Não foi possível carregar os dados de Vendas. Verifique a conexão e tente novamente.', true);
         return;
     }
     renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
@@ -647,7 +638,7 @@ function buildRankingCompleto(consultores, mes, ano){
 }
 
 // ============================================================================
-// DASHBOARD: QUALIDADE VENDAS (antigo documentacao)
+// DASHBOARD: VENDAS
 // ============================================================================
 
 function calcPercentDoc(aprovados, total, cancelados) {
@@ -731,11 +722,8 @@ function renderDocumentacaoDashboard(d) {
     const bySector = groupBySector(consultores);
     const sectors  = sortSectors(Object.keys(bySector), ['VENDAS','RECEPCAO','REFILIACAO','WEB SITE','TELEVENDAS','OUTROS']);
 
-   dashboardContent.innerHTML = `
+    dashboardContent.innerHTML = `
     <h2 class="dash-title"><i class="fas fa-folder" style="color:var(--primary)"></i> Dashboard Vendas — ${mes} ${ano}</h2>
-    <!-- ... resto do HTML ... -->
-    `;
-}
     <div class="main-cards">
         ${cardDoc('Total de Vendas', 'fas fa-chart-bar', geral, pG)}
         ${cardDoc('Vendas Loja', 'fas fa-store', vendasLoja, pL)}
