@@ -1,5 +1,5 @@
 // ============================================================================
-// DASHBOARD V21.1 - app.js — COM SUPABASE (NOMES CORRETOS)
+// DASHBOARD V21.1 - app.js — COM SUPABASE (CORRIGIDO)
 // ============================================================================
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwSJZCrAVjQpiXLnt-oAg0T6S8ehPoEyYoOhDRcl-5EbhcXW52xIfeQfLWw7tW5WGFilg/exec';
@@ -53,7 +53,7 @@ function invalidateCache(k){
 }
 
 // ============================================================================
-// CAMADA DE DADOS — Mapeamento de nomes
+// CAMADA DE DADOS
 // ============================================================================
 
 const SUPABASE_TABLES = {
@@ -112,7 +112,7 @@ async function fetchSupabase(endpoint, mes, ano) {
 }
 
 // ============================================================================
-// rowToData — CORRIGIDO para ler os números corretamente
+// rowToData — CORRIGIDO: calcula totais a partir dos consultores
 // ============================================================================
 
 function rowToData(endpoint, row) {
@@ -120,59 +120,72 @@ function rowToData(endpoint, row) {
 
     // --- qualidade_vendas ---
     if (endpoint === 'documentacao') {
-        const geral = row.geral || {};
-        const vendasLoja = row.vendasLoja || {};
-        const vendasWeb = row.vendasWeb || {};
-        
         let consultores = row.consultores || [];
         if (typeof consultores === 'string') {
             try { consultores = JSON.parse(consultores); } catch(e) { consultores = []; }
         }
         
+        // Mapeia o setor
         consultores = consultores.map(c => ({
             ...c,
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
         }));
+
+        // 🔥 CALCULA os totais a partir dos consultores
+        const totalCalc = consultores.reduce((sum, c) => sum + (c.total || 0), 0);
+        const aprovadosCalc = consultores.reduce((sum, c) => sum + (c.aprovados || 0), 0);
+        const canceladosCalc = consultores.reduce((sum, c) => sum + (c.cancelados || 0), 0);
+        const pendenciasCalc = consultores.reduce((sum, c) => sum + (c.pendencias || 0), 0);
+
+        // Usa o valor do Supabase se tiver, senão usa o calculado
+        const geralTotal = (row.geral?.total || 0) > 0 ? row.geral.total : totalCalc;
+        const geralAprovados = (row.geral?.aprovados || 0) > 0 ? row.geral.aprovados : aprovadosCalc;
+        const geralCancelados = (row.geral?.cancelados || 0) > 0 ? row.geral.cancelados : canceladosCalc;
+        const geralPendencias = (row.geral?.pendencias || 0) > 0 ? row.geral.pendencias : pendenciasCalc;
+
+        console.log('📊 Total do Supabase:', row.geral?.total);
+        console.log('📊 Total calculado dos consultores:', totalCalc);
+        console.log('📊 Usando valor final:', geralTotal);
 
         return {
             mes: row.mes || 'Julho',
             ano: row.ano || 2026,
             temColunasPromo: row.temColunasPromo || false,
             geral: {
-                total: geral.total || 0,
-                cancelados: geral.cancelados || 0,
-                aprovados: geral.aprovados || 0,
-                pendencias: geral.pendencias || 0,
-                reprovados: geral.reprovados || 0,
-                expirado: geral.expirado || 0,
-                pendente: geral.pendente || 0,
-                naoEnviado: geral.naoEnviado || 0,
-                promo: geral.promo || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0},
-                normal: geral.normal || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0}
+                total: geralTotal,
+                cancelados: geralCancelados,
+                aprovados: geralAprovados,
+                pendencias: geralPendencias,
+                reprovados: row.geral?.reprovados || 0,
+                expirado: row.geral?.expirado || 0,
+                pendente: row.geral?.pendente || 0,
+                naoEnviado: row.geral?.naoEnviado || 0,
+                promo: row.geral?.promo || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0},
+                normal: row.geral?.normal || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0}
             },
             vendasLoja: {
-                total: vendasLoja.total || 0,
-                cancelados: vendasLoja.cancelados || 0,
-                aprovados: vendasLoja.aprovados || 0,
-                pendencias: vendasLoja.pendencias || 0,
-                reprovados: vendasLoja.reprovados || 0,
-                expirado: vendasLoja.expirado || 0,
-                pendente: vendasLoja.pendente || 0,
-                naoEnviado: vendasLoja.naoEnviado || 0,
-                promo: vendasLoja.promo || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0},
-                normal: vendasLoja.normal || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0}
+                total: (row.vendasLoja?.total || 0) > 0 ? row.vendasLoja.total : totalCalc,
+                cancelados: (row.vendasLoja?.cancelados || 0) > 0 ? row.vendasLoja.cancelados : canceladosCalc,
+                aprovados: (row.vendasLoja?.aprovados || 0) > 0 ? row.vendasLoja.aprovados : aprovadosCalc,
+                pendencias: (row.vendasLoja?.pendencias || 0) > 0 ? row.vendasLoja.pendencias : pendenciasCalc,
+                reprovados: row.vendasLoja?.reprovados || 0,
+                expirado: row.vendasLoja?.expirado || 0,
+                pendente: row.vendasLoja?.pendente || 0,
+                naoEnviado: row.vendasLoja?.naoEnviado || 0,
+                promo: row.vendasLoja?.promo || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0},
+                normal: row.vendasLoja?.normal || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0}
             },
             vendasWeb: {
-                total: vendasWeb.total || 0,
-                cancelados: vendasWeb.cancelados || 0,
-                aprovados: vendasWeb.aprovados || 0,
-                pendencias: vendasWeb.pendencias || 0,
-                reprovados: vendasWeb.reprovados || 0,
-                expirado: vendasWeb.expirado || 0,
-                pendente: vendasWeb.pendente || 0,
-                naoEnviado: vendasWeb.naoEnviado || 0,
-                promo: vendasWeb.promo || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0},
-                normal: vendasWeb.normal || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0}
+                total: row.vendasWeb?.total || 0,
+                cancelados: row.vendasWeb?.cancelados || 0,
+                aprovados: row.vendasWeb?.aprovados || 0,
+                pendencias: row.vendasWeb?.pendencias || 0,
+                reprovados: row.vendasWeb?.reprovados || 0,
+                expirado: row.vendasWeb?.expirado || 0,
+                pendente: row.vendasWeb?.pendente || 0,
+                naoEnviado: row.vendasWeb?.naoEnviado || 0,
+                promo: row.vendasWeb?.promo || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0},
+                normal: row.vendasWeb?.normal || {total:0, cancelados:0, aprovados:0, reprovados:0, expirado:0, pendente:0, naoEnviado:0}
             },
             consultores: consultores,
             consultoresPorSetor: row.consultoresPorSetor || {},
@@ -191,29 +204,32 @@ function rowToData(endpoint, row) {
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
         }));
         
+        const totalCalc = consultores.reduce((sum, c) => sum + (c.total || 0), 0);
+        const simCalc = consultores.reduce((sum, c) => sum + (c.sim || 0), 0);
+        
         return {
             mes: row.mes || 'Julho',
             ano: row.ano || 2026,
             geral: { 
-                total: row.geral?.total || 0, 
-                sim: row.geral?.sim || 0, 
-                nao: row.geral?.nao || 0, 
-                cancelado: row.geral?.cancelado || 0, 
-                outros: row.geral?.outros || 0 
+                total: (row.geral?.total || 0) > 0 ? row.geral.total : totalCalc,
+                sim: (row.geral?.sim || 0) > 0 ? row.geral.sim : simCalc,
+                nao: row.geral?.nao || 0,
+                cancelado: row.geral?.cancelado || 0,
+                outros: row.geral?.outros || 0
             },
             appLoja: { 
-                total: row.appLoja?.total || row.loja_total || 0, 
-                sim: row.appLoja?.sim || row.loja_sim || 0, 
-                nao: row.appLoja?.nao || row.loja_nao || 0, 
-                cancelado: row.appLoja?.cancelado || row.loja_cancelado || 0, 
-                outros: row.appLoja?.outros || row.loja_outros || 0 
+                total: row.appLoja?.total || row.loja_total || 0,
+                sim: row.appLoja?.sim || row.loja_sim || 0,
+                nao: row.appLoja?.nao || row.loja_nao || 0,
+                cancelado: row.appLoja?.cancelado || row.loja_cancelado || 0,
+                outros: row.appLoja?.outros || row.loja_outros || 0
             },
             appWeb: { 
-                total: row.appWeb?.total || row.web_total || 0, 
-                sim: row.appWeb?.sim || row.web_sim || 0, 
-                nao: row.appWeb?.nao || row.web_nao || 0, 
-                cancelado: row.appWeb?.cancelado || row.web_cancelado || 0, 
-                outros: row.appWeb?.outros || row.web_outros || 0 
+                total: row.appWeb?.total || row.web_total || 0,
+                sim: row.appWeb?.sim || row.web_sim || 0,
+                nao: row.appWeb?.nao || row.web_nao || 0,
+                cancelado: row.appWeb?.cancelado || row.web_cancelado || 0,
+                outros: row.appWeb?.outros || row.web_outros || 0
             },
             consultores: consultores,
             consultorasRetencao: row.consultoras_retencao || []
@@ -231,20 +247,22 @@ function rowToData(endpoint, row) {
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
         }));
         
+        const totalTrocasCalc = consultores.reduce((sum, c) => sum + (c.totalTrocas || 0), 0);
+        
         return {
             mes: row.mes || 'Julho',
             ano: row.ano || 2026,
             geral: { 
-                totalTrocas: row.geral?.totalTrocas || row.geral_total_trocas || 0, 
-                mensOk: row.geral?.mensOk || row.geral_mens_ok || 0, 
-                mensAberto: row.geral?.mensAberto || row.geral_mens_aberto || 0, 
-                mensAtraso: row.geral?.mensAtraso || row.geral_mens_atraso || 0, 
-                aprovados: row.geral?.aprovados || row.geral_aprovados || 0, 
-                pendentes: row.geral?.pendentes || row.geral_pendentes || 0, 
-                totalBi: row.geral?.totalBi || row.geral_total_bi || 0, 
-                foraBi: row.geral?.foraBi || row.geral_fora_bi || 0, 
-                okBi: row.geral?.okBi || row.geral_ok_bi || 0, 
-                percentualAprovado: row.geral?.percentualAprovado || row.geral_percentual_aprovado || 0 
+                totalTrocas: (row.geral?.totalTrocas || 0) > 0 ? row.geral.totalTrocas : totalTrocasCalc,
+                mensOk: row.geral?.mensOk || row.geral_mens_ok || 0,
+                mensAberto: row.geral?.mensAberto || row.geral_mens_aberto || 0,
+                mensAtraso: row.geral?.mensAtraso || row.geral_mens_atraso || 0,
+                aprovados: row.geral?.aprovados || row.geral_aprovados || 0,
+                pendentes: row.geral?.pendentes || row.geral_pendentes || 0,
+                totalBi: row.geral?.totalBi || row.geral_total_bi || 0,
+                foraBi: row.geral?.foraBi || row.geral_fora_bi || 0,
+                okBi: row.geral?.okBi || row.geral_ok_bi || 0,
+                percentualAprovado: row.geral?.percentualAprovado || row.geral_percentual_aprovado || 0
             },
             consultores: consultores
         };
@@ -266,14 +284,16 @@ function rowToData(endpoint, row) {
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
         }));
         
+        const totalCalc = consultores.reduce((sum, c) => sum + (c.total || 0), 0);
+        
         return {
             mes: row.mes || 'Julho',
             ano: row.ano || 2026,
             geral: { 
-                total: row.geral?.total || row.geral_total || 0, 
-                comLigacao: row.geral?.comLigacao || row.geral_com_ligacao || 0, 
-                semLigacao: row.geral?.semLigacao || row.geral_sem_ligacao || 0, 
-                cancelado: row.geral?.cancelado || row.geral_cancelado || 0 
+                total: (row.geral?.total || 0) > 0 ? row.geral.total : totalCalc,
+                comLigacao: row.geral?.comLigacao || row.geral_com_ligacao || 0,
+                semLigacao: row.geral?.semLigacao || row.geral_sem_ligacao || 0,
+                cancelado: row.geral?.cancelado || row.geral_cancelado || 0
             },
             consultores: consultores
         };
