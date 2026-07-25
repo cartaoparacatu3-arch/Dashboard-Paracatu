@@ -60,7 +60,7 @@ const SUPABASE_TABLES = {
     'documentacao': 'qualidade_vendas',
     'app': 'app_dashboard',
     'adimplencia': 'qualidade_trocas',
-    'recorrencia': 'recorrência',
+    'recorrencia': 'recorrencia',  // ← CORRIGIDO: sem acento
     'refuturiza': 'refuturiza'
 };
 
@@ -69,6 +69,7 @@ const SUPABASE_TABLES = {
 // ============================================================================
 
 async function fetchSupabase(endpoint, mes, ano) {
+    // Recorrencia_vendedor e campanha14 removidos
     if (endpoint === 'campanha14' || endpoint === 'recorrencia_vendedor') return null;
 
     const tabela = SUPABASE_TABLES[endpoint];
@@ -85,6 +86,7 @@ async function fetchSupabase(endpoint, mes, ano) {
         };
 
         if (endpoint === 'recorrencia') {
+            // Recorrência não tem filtro de mês/ano
             url = `${SUPABASE_URL}/rest/v1/${tabela}?select=*&limit=1`;
         } else {
             url = `${SUPABASE_URL}/rest/v1/${tabela}?mes=eq.${mes}&ano=eq.${ano}&select=*`;
@@ -112,7 +114,7 @@ async function fetchSupabase(endpoint, mes, ano) {
 }
 
 // ============================================================================
-// rowToData — CORRIGIDO: calcula totais a partir dos consultores
+// rowToData
 // ============================================================================
 
 function rowToData(endpoint, row) {
@@ -125,27 +127,20 @@ function rowToData(endpoint, row) {
             try { consultores = JSON.parse(consultores); } catch(e) { consultores = []; }
         }
         
-        // Mapeia o setor
         consultores = consultores.map(c => ({
             ...c,
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
         }));
 
-        // 🔥 CALCULA os totais a partir dos consultores
         const totalCalc = consultores.reduce((sum, c) => sum + (c.total || 0), 0);
         const aprovadosCalc = consultores.reduce((sum, c) => sum + (c.aprovados || 0), 0);
         const canceladosCalc = consultores.reduce((sum, c) => sum + (c.cancelados || 0), 0);
         const pendenciasCalc = consultores.reduce((sum, c) => sum + (c.pendencias || 0), 0);
 
-        // Usa o valor do Supabase se tiver, senão usa o calculado
         const geralTotal = (row.geral?.total || 0) > 0 ? row.geral.total : totalCalc;
         const geralAprovados = (row.geral?.aprovados || 0) > 0 ? row.geral.aprovados : aprovadosCalc;
         const geralCancelados = (row.geral?.cancelados || 0) > 0 ? row.geral.cancelados : canceladosCalc;
         const geralPendencias = (row.geral?.pendencias || 0) > 0 ? row.geral.pendencias : pendenciasCalc;
-
-        console.log('📊 Total do Supabase:', row.geral?.total);
-        console.log('📊 Total calculado dos consultores:', totalCalc);
-        console.log('📊 Usando valor final:', geralTotal);
 
         return {
             mes: row.mes || 'Julho',
@@ -270,7 +265,26 @@ function rowToData(endpoint, row) {
 
     // --- recorrência ---
     if (endpoint === 'recorrencia') {
-        return typeof row.dados === 'string' ? JSON.parse(row.dados) : (row.dados || {});
+        // Se os dados estiverem em row.dados
+        if (row.dados) {
+            const parsed = typeof row.dados === 'string' ? JSON.parse(row.dados) : row.dados;
+            console.log('📊 Recorrência processada de row.dados');
+            return parsed;
+        }
+        
+        // Se os dados estiverem diretamente no row
+        if (row.retencao && row.refiliacao) {
+            console.log('📊 Recorrência processada de row.retencao/refiliacao');
+            return {
+                periodo: row.periodo || { atual: 'Atual', historico: [] },
+                retencao: row.retencao,
+                refiliacao: row.refiliacao
+            };
+        }
+        
+        // Se for o próprio row
+        console.log('📊 Recorrência processada do row direto');
+        return row;
     }
 
     // --- refuturiza ---
@@ -345,13 +359,18 @@ function buildUrl(ep, m, y) {
     const endpointMap = {
         'documentacao': 'qualidade_vendas',
         'app': 'app_dashboard',
-        'adimplencia': 'qualidade_trocas'
+        'adimplencia': 'qualidade_trocas',
+        'recorrencia': 'recorrencia'
     };
     const endpointReal = endpointMap[ep] || ep;
     let u = `${API_URL}?endpoint=${endpointReal}`;
     if (!SEM_FILTRO.includes(ep)) u += `&mes=${m}&ano=${y}`;
     return u;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// O RESTO DO CÓDIGO (renderizações, helpers, etc) PERMANECE IGUAL
+// ═══════════════════════════════════════════════════════════════════════════
 
 // ── Auto-refresh ──────────────────────────────────────────────────
 setInterval(() => {
@@ -862,6 +881,7 @@ function renderAppDashboard(d){
     <h3 class="section-title"><i class="fas fa-layer-group" style="color:var(--teal)"></i> Desempenho por Setor</h3>
     ${sectors.map(sector=>{const list=bySector[sector];const tot=list.reduce((s,c)=>s+c.total,0),sim=list.reduce((s,c)=>s+(c.sim||0),0);const pct=calcPercent(sim,tot);return `<div class="sector-card"><div class="sector-header"><div class="sector-title"><i class="${getSectorIcon(sector)}"></i> ${sector}<span class="sector-count">${list.length} consultor${list.length!==1?'es':''}</span></div><div class="metric-percent ${getPercentClass(pct)}">${pct}% com app</div></div><div class="consultant-grid">${list.sort((a,b)=>b.total-a.total).map(c=>{const p=calcPercent(c.sim||0,c.total);return `<div class="consultant-card"><div class="consultant-header"><div class="consultant-name">${c.nome}</div><div class="consultant-sector ${getSectorClass(sector)}">${sector}</div></div><div class="metric-grid">${metricItem('Total',c.total)}${metricItem('Com App',c.sim||0,'var(--success)')}${metricItem('Sem App',c.nao||0,'var(--danger)')}${metricItem('Cancelados',c.cancelado||0,'var(--gray)')}${metricPercent('% Com App',p)}</div></div>`;}).join('')}</div></div>`;}).join('')}`;
 }
+
 function cardApp(t,icon,d,pct){ return `<div class="card card-app"><div class="card-header"><div class="card-title">${t}</div><div class="card-icon"><i class="${icon}"></i></div></div><div class="metric-grid">${metricItem('Total Clientes',d.total)}${metricItem('Com App (SIM)',d.sim,'var(--success)')}${metricItem('Sem App (NÃO)',d.nao,'var(--danger)')}${metricItem('Cancelados',d.cancelado||0,'var(--gray)')}${metricPercent('% Com App',pct)}</div></div>`; }
 
 // ============================================================================
@@ -882,13 +902,25 @@ function renderAdimplenciaDashboard(d){
 // ============================================================================
 
 function renderRecorrenciaDashboard(d){
+    // Verifica se os dados estão no formato esperado
+    if (!d || !d.retencao || !d.refiliacao) {
+        console.warn('Dados de recorrência incompletos:', d);
+        dashboardContent.innerHTML = `
+        <div class="error-message">
+            <h3>Dados de Recorrência não encontrados</h3>
+            <p>Os dados podem estar indisponíveis no momento. Tente novamente mais tarde.</p>
+            <button class="btn btn-topbar-refresh" onclick="loadDashboard()"><i class="fas fa-redo"></i> Tentar novamente</button>
+        </div>`;
+        return;
+    }
+
     const {retencao,refiliacao,periodo}=d;
     const retKeys=Object.keys(retencao),refKeys=Object.keys(refiliacao);
     dashboardContent.innerHTML=`
-    <h2 class="dash-title"><i class="fas fa-redo" style="color:var(--warning)"></i> Dashboard Recorrência — ${periodo.atual}</h2>
-    <div style="background:rgba(245,158,11,0.08);padding:14px 18px;border-radius:12px;margin-bottom:24px;border-left:4px solid var(--warning);"><p style="margin:0;color:#92400e;font-weight:600;font-size:0.9rem;"><i class="fas fa-info-circle"></i> Período atual: ${periodo.atual} | Histórico: ${periodo.historico.join(', ')}</p></div>
+    <h2 class="dash-title"><i class="fas fa-redo" style="color:var(--warning)"></i> Dashboard Recorrência — ${periodo?.atual || 'Atual'}</h2>
+    <div style="background:rgba(245,158,11,0.08);padding:14px 18px;border-radius:12px;margin-bottom:24px;border-left:4px solid var(--warning);"><p style="margin:0;color:#92400e;font-weight:600;font-size:0.9rem;"><i class="fas fa-info-circle"></i> Período atual: ${periodo?.atual || 'Atual'} | Histórico: ${periodo?.historico?.join(', ') || 'N/A'}</p></div>
     <h3 class="section-title" style="border-bottom:2px solid var(--primary)"><i class="fas fa-crown" style="color:var(--primary)"></i> Retenção</h3>
-    <div class="consultant-grid" style="margin-bottom:36px">${retKeys.map(key=>{const c=retencao[key];const pA=calcPercent(c.atual.retençõesOK,c.atual.totalRetidosFinal),pT=calcPercent(c.total3Meses.totalOK||0,c.total3Meses.totalRetidosFinal);return `<div class="consultant-card"><div class="consultant-header"><div class="consultant-name">${key} (RETENÇÃO)</div><div class="consultant-sector sector-vendas">RETENÇÃO</div></div><h4 class="sub-section-title"><i class="far fa-calendar-check"></i> Mês Atual (${periodo.atual})</h4><div class="metric-grid">${metricItem('Total Retido',c.atual.totalRetido)}${metricItem('Cancelados',c.atual.cancelado,'var(--danger)')}${metricItem('Retenções OK',c.atual.retençõesOK,'var(--success)')}${metricItem('Pendências KYC',c.atual.pendenciasKYC,'var(--warning)')}${metricPercent('% OK',pA)}</div><h4 class="sub-section-title"><i class="fas fa-chart-line"></i> Total 3 Meses</h4><div class="metric-grid">${metricItem('Total Retido',c.total3Meses.totalRetido)}${metricItem('Cancelados',c.total3Meses.cancelado||0,'var(--danger)')}${metricItem('Total OK',c.total3Meses.totalOK||0,'var(--success)')}${metricItem('Em Atraso',c.total3Meses.emAtraso,'var(--warning)')}${metricPercent('% OK',pT)}</div></div>`;}).join('')}</div>
+    <div class="consultant-grid" style="margin-bottom:36px">${retKeys.map(key=>{const c=retencao[key];const pA=calcPercent(c.atual.retençõesOK,c.atual.totalRetidosFinal),pT=calcPercent(c.total3Meses.totalOK||0,c.total3Meses.totalRetidosFinal);return `<div class="consultant-card"><div class="consultant-header"><div class="consultant-name">${key} (RETENÇÃO)</div><div class="consultant-sector sector-vendas">RETENÇÃO</div></div><h4 class="sub-section-title"><i class="far fa-calendar-check"></i> Mês Atual (${periodo?.atual || 'Atual'})</h4><div class="metric-grid">${metricItem('Total Retido',c.atual.totalRetido)}${metricItem('Cancelados',c.atual.cancelado,'var(--danger)')}${metricItem('Retenções OK',c.atual.retençõesOK,'var(--success)')}${metricItem('Pendências KYC',c.atual.pendenciasKYC,'var(--warning)')}${metricPercent('% OK',pA)}</div><h4 class="sub-section-title"><i class="fas fa-chart-line"></i> Total 3 Meses</h4><div class="metric-grid">${metricItem('Total Retido',c.total3Meses.totalRetido)}${metricItem('Cancelados',c.total3Meses.cancelado||0,'var(--danger)')}${metricItem('Total OK',c.total3Meses.totalOK||0,'var(--success)')}${metricItem('Em Atraso',c.total3Meses.emAtraso,'var(--warning)')}${metricPercent('% OK',pT)}</div></div>`;}).join('')}</div>
     <h3 class="section-title" style="border-bottom:2px solid var(--warning)"><i class="fas fa-user-plus" style="color:var(--warning)"></i> Refiliação</h3>
     <div class="consultant-grid">${refKeys.map(key=>{const c=refiliacao[key];const pT=calcPercent(c.total3Meses.totalOK||0,c.total3Meses.totalRetidosFinal);return `<div class="consultant-card"><div class="consultant-header"><div class="consultant-name">${key} (REFILIAÇÃO)</div><div class="consultant-sector sector-refiliacao">REFILIAÇÃO</div></div><h4 class="sub-section-title"><i class="fas fa-chart-line"></i> Total 3 Meses</h4><div class="metric-grid">${metricItem('Total Refiliados',c.total3Meses.totalRetido)}${metricItem('Cancelados',c.total3Meses.cancelado||0,'var(--danger)')}${metricItem('Total OK',c.total3Meses.totalOK||0,'var(--success)')}${metricItem('Em Atraso',c.total3Meses.emAtraso,'var(--warning)')}${metricPercent('% OK',pT)}</div></div>`;}).join('')}</div>`;
 }
