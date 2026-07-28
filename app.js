@@ -1,5 +1,5 @@
 // ============================================================================
-// DASHBOARD V21.1 - app.js — COM SUPABASE (CORRIGIDO FINAL)
+// DASHBOARD V21.1 - app.js — COM SUPABASE (CORRIGIDO)
 // ============================================================================
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbw1BfUIRmc4yIPN0UKvQdXSHspeiPDlYQTnauphflE7uOaKTI_w3JxvSXNkSySvHvymfw/exec';
@@ -112,7 +112,7 @@ async function fetchSupabase(endpoint, mes, ano) {
 }
 
 // ============================================================================
-// rowToData
+// rowToData — com correções para garantir arrays
 // ============================================================================
 
 function rowToData(endpoint, row) {
@@ -124,6 +124,7 @@ function rowToData(endpoint, row) {
         if (typeof consultores === 'string') {
             try { consultores = JSON.parse(consultores); } catch(e) { consultores = []; }
         }
+        if (!Array.isArray(consultores)) consultores = [];
         
         consultores = consultores.map(c => ({
             ...c,
@@ -186,46 +187,58 @@ function rowToData(endpoint, row) {
         };
     }
 
-    // --- app_dashboard ---
+    // --- app_dashboard (CORRIGIDO) ---
     if (endpoint === 'app') {
         let consultores = row.consultores || [];
         if (typeof consultores === 'string') {
             try { consultores = JSON.parse(consultores); } catch(e) { consultores = []; }
         }
+        if (!Array.isArray(consultores)) consultores = [];
+
         consultores = consultores.map(c => ({
             ...c,
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
         }));
-        
+
+        let consultorasRetencao = row.consultoras_retencao || [];
+        if (typeof consultorasRetencao === 'string') {
+            try { consultorasRetencao = JSON.parse(consultorasRetencao); } catch(e) { consultorasRetencao = []; }
+        }
+        if (!Array.isArray(consultorasRetencao)) consultorasRetencao = [];
+
         const totalCalc = consultores.reduce((sum, c) => sum + (c.total || 0), 0);
         const simCalc = consultores.reduce((sum, c) => sum + (c.sim || 0), 0);
-        
+
+        const geral = row.geral || {};
+        const appLoja = row.appLoja || {};
+        const appWeb = row.appWeb || {};
+
         return {
             mes: row.mes || 'Julho',
             ano: row.ano || 2026,
-            geral: { 
-                total: (row.geral?.total || 0) > 0 ? row.geral.total : (row.geral_total || totalCalc),
-                sim: (row.geral?.sim || 0) > 0 ? row.geral.sim : (row.geral_sim || simCalc),
-                nao: row.geral?.nao || row.geral_nao || 0,
-                cancelado: row.geral?.cancelado || row.geral_cancelado || 0,
-                outros: row.geral?.outros || row.geral_outros || 0
+            geral: {
+                total: (geral.total || 0) > 0 ? geral.total : totalCalc,
+                sim: (geral.sim || 0) > 0 ? geral.sim : simCalc,
+                nao: geral.nao || 0,
+                cancelado: geral.cancelado || 0,
+                outros: geral.outros || 0
             },
-            appLoja: { 
-                total: row.appLoja?.total || row.loja_total || 0,
-                sim: row.appLoja?.sim || row.loja_sim || 0,
-                nao: row.appLoja?.nao || row.loja_nao || 0,
-                cancelado: row.appLoja?.cancelado || row.loja_cancelado || 0,
-                outros: row.appLoja?.outros || row.loja_outros || 0
+            appLoja: {
+                total: appLoja.total || row.loja_total || 0,
+                sim: appLoja.sim || row.loja_sim || 0,
+                nao: appLoja.nao || row.loja_nao || 0,
+                cancelado: appLoja.cancelado || row.loja_cancelado || 0,
+                outros: appLoja.outros || row.loja_outros || 0
             },
-            appWeb: { 
-                total: row.appWeb?.total || row.web_total || 0,
-                sim: row.appWeb?.sim || row.web_sim || 0,
-                nao: row.appWeb?.nao || row.web_nao || 0,
-                cancelado: row.appWeb?.cancelado || row.web_cancelado || 0,
-                outros: row.appWeb?.outros || row.web_outros || 0
+            appWeb: {
+                total: appWeb.total || row.web_total || 0,
+                sim: appWeb.sim || row.web_sim || 0,
+                nao: appWeb.nao || row.web_nao || 0,
+                cancelado: appWeb.cancelado || row.web_cancelado || 0,
+                outros: appWeb.outros || row.web_outros || 0
             },
             consultores: consultores,
-            consultorasRetencao: row.consultoras_retencao || []
+            consultorasRetencao: consultorasRetencao
         };
     }
 
@@ -235,6 +248,8 @@ function rowToData(endpoint, row) {
         if (typeof consultores === 'string') {
             try { consultores = JSON.parse(consultores); } catch(e) { consultores = []; }
         }
+        if (!Array.isArray(consultores)) consultores = [];
+
         consultores = consultores.map(c => ({
             ...c,
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
@@ -286,6 +301,8 @@ function rowToData(endpoint, row) {
         if (typeof consultores === 'string') {
             try { consultores = JSON.parse(consultores); } catch(e) { consultores = []; }
         }
+        if (!Array.isArray(consultores)) consultores = [];
+
         consultores = consultores.map(c => ({
             ...c,
             setor: (c.setorExibicao || c.setorOriginal || c.setor || 'OUTROS').toUpperCase()
@@ -547,14 +564,13 @@ async function loadDashboard(){
     try{
         const result = await fetchData(currentDashboard, currentMonth, currentYear);
         hideSkeleton();
-        // 🔧 VERIFICAÇÃO: se result.data existir, prossegue
-        if(result.status === 'success' && result.data){
+        if(result.status === 'success'){
             setCache(k, result.data);
             window._dashboardData = result.data;
             if(result.fonte === 'appscript') showToast('⚠️ Supabase sem dados — carregado do Apps Script');
             renderDashboard();
         } else {
-            showError(result.error || 'Dados não encontrados para este período.', true);
+            showError(result.error || 'Erro desconhecido', true);
         }
     }catch(err){
         hideSkeleton();
@@ -571,26 +587,13 @@ async function loadDashboard(){
 function renderDashboard(){
     hideLoading();
     const data = window._dashboardData;
-    // 🔧 VERIFICAÇÃO: se data não existir, exibe erro
-    if (!data) {
-        showError('Dados indisponíveis. Tente atualizar a página.', true);
-        return;
-    }
-    // 🔧 CORREÇÃO: qualquer erro durante a renderização de uma aba específica
-    // agora é capturado aqui e exibe uma tela de erro, em vez de deixar o
-    // dashboard "travado" mostrando o conteúdo da última aba renderizada com sucesso.
-    try {
-        switch(currentDashboard){
-            case 'documentacao':         renderDocumentacaoDashboard(data);        break;
-            case 'app':                  renderAppDashboard(data);                 break;
-            case 'adimplencia':          renderAdimplenciaDashboard(data);         break;
-            case 'recorrencia':          renderRecorrenciaDashboard(data);         break;
-            case 'refuturiza':           renderRefuturizaDashboard(data);          break;
-            default: showError('Dashboard não encontrado: ' + currentDashboard);
-        }
-    } catch (err) {
-        console.error(`[renderDashboard] Erro ao renderizar "${currentDashboard}":`, err);
-        showError('Ocorreu um erro ao exibir os dados desta aba.', true);
+    switch(currentDashboard){
+        case 'documentacao':         renderDocumentacaoDashboard(data);        break;
+        case 'app':                  renderAppDashboard(data);                 break;
+        case 'adimplencia':          renderAdimplenciaDashboard(data);         break;
+        case 'recorrencia':          renderRecorrenciaDashboard(data);         break;
+        case 'refuturiza':           renderRefuturizaDashboard(data);          break;
+        default: showError('Dashboard não encontrado: ' + currentDashboard);
     }
 }
 
@@ -606,13 +609,13 @@ async function loadResumoDashboard(){
 
     if(allCached){
         eps.forEach(ep => { results[ep] = getCached(cacheKey(ep, currentMonth, currentYear)); });
-        safeRenderResumo(results);
+        renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
         updateLastUpdateTime();
         Promise.all(eps.map(async ep => {
             const r = await fetchData(ep, currentMonth, currentYear);
             if(r.status==='success'){ setCache(cacheKey(ep,currentMonth,currentYear), r.data); results[ep]=r.data; }
         })).then(() => {
-            if(results['documentacao']) safeRenderResumo(results);
+            if(results['documentacao']) renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
         }).catch(_=>{});
         return;
     }
@@ -634,20 +637,8 @@ async function loadResumoDashboard(){
         showError('Não foi possível carregar os dados de Vendas. Verifique a conexão e tente novamente.', true);
         return;
     }
-    safeRenderResumo(results);
+    renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
     updateLastUpdateTime();
-}
-
-// 🔧 CORREÇÃO: wrapper que captura erros de renderResumoDashboard (ex: dado
-// parcial vindo de alguma aba) e exibe uma tela de erro em vez de travar
-// mostrando o conteúdo da última aba renderizada com sucesso.
-function safeRenderResumo(results){
-    try{
-        renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
-    }catch(err){
-        console.error('[safeRenderResumo] Erro ao renderizar Resumo:', err);
-        showError('Ocorreu um erro ao exibir o Resumo Geral.', true);
-    }
 }
 
 function updateLastUpdateTime(){
@@ -884,126 +875,107 @@ function cardDoc(t, icon, d, pct) {
 }
 
 // ============================================================================
-// DASHBOARD: APP — CORRIGIDO COM VERIFICAÇÕES
+// DASHBOARD: APP (com verificação extra)
 // ============================================================================
 
 function renderAppDashboard(d){
-    // 🔧 VERIFICAÇÃO: se d ou d.geral não existirem, exibe erro
-    if (!d || !d.geral) {
-        showError('Dados do App não disponíveis para este período.', true);
+    // Verificação de segurança
+    if (!d || !d.consultores || !Array.isArray(d.consultores)) {
+        dashboardContent.innerHTML = `
+        <div class="error-message">
+            <h3>Dados do App não disponíveis</h3>
+            <p>Os dados podem estar temporariamente indisponíveis.</p>
+            <button class="btn btn-topbar-refresh" onclick="loadDashboard()"><i class="fas fa-redo"></i> Tentar novamente</button>
+        </div>`;
         return;
     }
 
-    const DEFAULT_APP_BLOCK = {total:0, sim:0, nao:0, cancelado:0, outros:0};
-    const {
-        geral = DEFAULT_APP_BLOCK,
-        appLoja = DEFAULT_APP_BLOCK,
-        appWeb = DEFAULT_APP_BLOCK,
-        consultores = [],
-        consultorasRetencao = [],
-        mes, ano
-    } = d;
-
+    const {geral, appLoja, appWeb, consultores, consultorasRetencao, mes, ano} = d;
     const pG = calcPercent(geral.sim, geral.total);
     const pL = calcPercent(appLoja.sim, appLoja.total);
     const pW = calcPercent(appWeb.sim, appWeb.total);
-
     const regular = consultores.filter(c => !c.origem || c.origem !== 'retencao');
     const bySector = groupBySector(regular);
     const sectors = sortSectors(Object.keys(bySector), ['VENDAS','RECEPCAO','REFILIACAO','WEB SITE','TELEVENDAS','OUTROS']);
-
-    let html = `
-    <h2 class="dash-title"><i class="fas fa-mobile-alt" style="color:var(--teal)"></i> Dashboard App — ${mes || ''} ${ano || ''}</h2>
+    dashboardContent.innerHTML = `
+    <h2 class="dash-title"><i class="fas fa-mobile-alt" style="color:var(--teal)"></i> Dashboard App — ${mes} ${ano}</h2>
     <div class="main-cards">
-        ${cardApp('App — Total Geral','fas fa-chart-pie', geral, pG)}
-        ${cardApp('App — Loja','fas fa-store', appLoja, pL)}
-        ${cardApp('App — Web/Tele','fas fa-globe', appWeb, pW)}
-    </div>`;
-
-    // Consultoras de Retenção
-    if (consultorasRetencao && consultorasRetencao.length > 0) {
-        html += `
-        <div class="retention-section">
-            <div class="retention-header"><i class="fas fa-crown"></i><h3>Consultoras de Retenção</h3></div>
+        ${cardApp('App — Total Geral','fas fa-chart-pie',geral,pG)}
+        ${cardApp('App — Loja','fas fa-store',appLoja,pL)}
+        ${cardApp('App — Web/Tele','fas fa-globe',appWeb,pW)}
+    </div>
+    ${consultorasRetencao && consultorasRetencao.length > 0 ? `
+    <div class="retention-section">
+        <div class="retention-header"><i class="fas fa-crown"></i><h3>Consultoras de Retenção</h3></div>
+        <div class="consultant-grid">
+            ${consultorasRetencao.map(c => {
+                const p = calcPercent(c.sim, c.total);
+                return `<div class="consultant-card" style="border-left:3px solid #f59e0b;">
+                    <div class="consultant-header">
+                        <div class="consultant-name">${c.nome} (RETENÇÃO)</div>
+                        <div class="consultant-sector sector-retencao">RETENÇÃO</div>
+                    </div>
+                    <div class="metric-grid">
+                        ${metricItem('Total',c.total)}
+                        ${metricItem('Com App',c.sim,'var(--success)')}
+                        ${metricItem('Sem App',c.nao,'var(--danger)')}
+                        ${metricItem('Cancelados',c.cancelado||0,'var(--gray)')}
+                        ${metricPercent('% Com App',p)}
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>
+    </div>` : ''}
+    <h3 class="section-title"><i class="fas fa-layer-group" style="color:var(--teal)"></i> Desempenho por Setor</h3>
+    ${sectors.map(sector => {
+        const list = bySector[sector];
+        const tot = list.reduce((s,c) => s + c.total, 0);
+        const sim = list.reduce((s,c) => s + (c.sim||0), 0);
+        const pct = calcPercent(sim, tot);
+        return `<div class="sector-card">
+            <div class="sector-header">
+                <div class="sector-title">
+                    <i class="${getSectorIcon(sector)}"></i> ${sector}
+                    <span class="sector-count">${list.length} consultor${list.length!==1?'es':''}</span>
+                </div>
+                <div class="metric-percent ${getPercentClass(pct)}">${pct}% com app</div>
+            </div>
             <div class="consultant-grid">
-                ${consultorasRetencao.map(c => {
-                    const p = calcPercent(c.sim, c.total);
-                    return `<div class="consultant-card" style="border-left:3px solid #f59e0b;">
+                ${list.sort((a,b) => b.total - a.total).map(c => {
+                    const p = calcPercent(c.sim||0, c.total);
+                    return `<div class="consultant-card">
                         <div class="consultant-header">
-                            <div class="consultant-name">${c.nome} (RETENÇÃO)</div>
-                            <div class="consultant-sector sector-retencao">RETENÇÃO</div>
+                            <div class="consultant-name">${c.nome}</div>
+                            <div class="consultant-sector ${getSectorClass(sector)}">${sector}</div>
                         </div>
                         <div class="metric-grid">
-                            ${metricItem('Total', c.total)}
-                            ${metricItem('Com App', c.sim, 'var(--success)')}
-                            ${metricItem('Sem App', c.nao, 'var(--danger)')}
-                            ${metricItem('Cancelados', c.cancelado || 0, 'var(--gray)')}
-                            ${metricPercent('% Com App', p)}
+                            ${metricItem('Total',c.total)}
+                            ${metricItem('Com App',c.sim||0,'var(--success)')}
+                            ${metricItem('Sem App',c.nao||0,'var(--danger)')}
+                            ${metricItem('Cancelados',c.cancelado||0,'var(--gray)')}
+                            ${metricPercent('% Com App',p)}
                         </div>
                     </div>`;
                 }).join('')}
             </div>
         </div>`;
-    }
-
-    // Setores
-    if (sectors.length > 0) {
-        html += `<h3 class="section-title"><i class="fas fa-layer-group" style="color:var(--teal)"></i> Desempenho por Setor</h3>`;
-        html += sectors.map(sector => {
-            const list = bySector[sector] || [];
-            const tot = list.reduce((s, c) => s + c.total, 0);
-            const sim = list.reduce((s, c) => s + (c.sim || 0), 0);
-            const pct = calcPercent(sim, tot);
-            return `
-            <div class="sector-card">
-                <div class="sector-header">
-                    <div class="sector-title">
-                        <i class="${getSectorIcon(sector)}"></i> ${sector}
-                        <span class="sector-count">${list.length} consultor${list.length !== 1 ? 'es' : ''}</span>
-                    </div>
-                    <div class="metric-percent ${getPercentClass(pct)}">${pct}% com app</div>
-                </div>
-                <div class="consultant-grid">
-                    ${list.sort((a, b) => b.total - a.total).map(c => {
-                        const p = calcPercent(c.sim || 0, c.total);
-                        return `<div class="consultant-card">
-                            <div class="consultant-header">
-                                <div class="consultant-name">${c.nome}</div>
-                                <div class="consultant-sector ${getSectorClass(sector)}">${sector}</div>
-                            </div>
-                            <div class="metric-grid">
-                                ${metricItem('Total', c.total)}
-                                ${metricItem('Com App', c.sim || 0, 'var(--success)')}
-                                ${metricItem('Sem App', c.nao || 0, 'var(--danger)')}
-                                ${metricItem('Cancelados', c.cancelado || 0, 'var(--gray)')}
-                                ${metricPercent('% Com App', p)}
-                            </div>
-                        </div>`;
-                    }).join('')}
-                </div>
-            </div>`;
-        }).join('');
-    } else {
-        html += `<p style="color:var(--text-muted);text-align:center;margin:40px 0;">Nenhum consultor encontrado para este período.</p>`;
-    }
-
-    dashboardContent.innerHTML = html;
+    }).join('')}`;
 }
 
-function cardApp(t,icon,d,pct){ 
+function cardApp(t,icon,d,pct){
     return `<div class="card card-app">
         <div class="card-header">
             <div class="card-title">${t}</div>
             <div class="card-icon"><i class="${icon}"></i></div>
         </div>
         <div class="metric-grid">
-            ${metricItem('Total Clientes', d.total)}
-            ${metricItem('Com App (SIM)', d.sim, 'var(--success)')}
-            ${metricItem('Sem App (NÃO)', d.nao, 'var(--danger)')}
-            ${metricItem('Cancelados', d.cancelado || 0, 'var(--gray)')}
-            ${metricPercent('% Com App', pct)}
+            ${metricItem('Total Clientes',d.total)}
+            ${metricItem('Com App (SIM)',d.sim,'var(--success)')}
+            ${metricItem('Sem App (NÃO)',d.nao,'var(--danger)')}
+            ${metricItem('Cancelados',d.cancelado||0,'var(--gray)')}
+            ${metricPercent('% Com App',pct)}
         </div>
-    </div>`; 
+    </div>`;
 }
 
 // ============================================================================
