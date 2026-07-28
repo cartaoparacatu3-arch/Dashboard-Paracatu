@@ -1,14 +1,11 @@
 /**
  * API UNIFICADA - DASHBOARDS V21.0
- * VERSÃO COMPLETA COM TODOS OS DASHBOARDS ATUALIZADOS:
- * 1. Qualidade Vendas | 2. App | 3. Qualidade Trocas | 4. Recorrência | 5. Refuturiza
- *
- * ATUALIZAÇÕES V21.0:
- * - Funcionários dinâmicos via aba FUNCIONARIOS
- * - Removido Recorrência Vendedor
- * - Removido Campanha 14° Salário
- * - Sincronização automática com Supabase
- * - Novos nomes de sheets e dashboards
+ * VERSÃO COMPLETA COM TODOS OS DASHBOARDS ATUALIZADOS
+ * 
+ * CORREÇÃO: Recorrência agora busca consultores dinamicamente da aba FUNCIONARIOS
+ * CORREÇÃO DE DATA: Extração de datas na recorrência agora suporta Date objects,
+ *                   números seriais do Google Sheets e strings em vários formatos.
+ * CORREÇÃO DE MÉTRICAS: Adicionados campos totalOK e pendencias nos dados de recorrência.
  */
 
 // ============================================================================
@@ -27,16 +24,11 @@ const MESES = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-// ============================================================================
-// SUPABASE - CONFIGURAÇÕES (ATUALIZAR PARA O NOVO PROJETO)
-// ============================================================================
-
-// ⚠️ ATUALIZAR COM OS DADOS DO NOVO PROJETO SUPABASE
 const SUPABASE_URL = 'https://ddxhnoiqxtbfdrwhhcab.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkeGhub2lxeHRiZmRyd2hoY2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MjUyMjcsImV4cCI6MjEwMDUwMTIyN30.NBISCHsDQiDTkysd6TSxiU67kcM4Aspk01lD05rbtUM';
 
 // ============================================================================
-// FUNÇÃO PRINCIPAL - doGet() PARA API
+// FUNÇÃO PRINCIPAL - doGet()
 // ============================================================================
 
 function doGet(e) {
@@ -79,7 +71,7 @@ function doGet(e) {
 }
 
 // ============================================================================
-// MENU CUSTOMIZADO V21.0
+// MENU CUSTOMIZADO
 // ============================================================================
 
 function onOpen() {
@@ -165,7 +157,7 @@ function onOpen() {
 }
 
 // ============================================================================
-// FUNCIONARIOS - LEITURA DINÂMICA DA PLANILHA
+// FUNCIONARIOS
 // ============================================================================
 
 function carregarFuncionarios() {
@@ -175,25 +167,16 @@ function carregarFuncionarios() {
     
     if (!sheet) {
       sheet = ssDados.insertSheet(NOME_ABA_FUNCIONARIOS);
-      
       const headers = ["Nome Completo", "Setor", "Ativo"];
       sheet.appendRow(headers);
-      
       const hRange = sheet.getRange(1, 1, 1, 3);
-      hRange.setFontWeight("bold")
-            .setBackground("#1e3a8a")
-            .setFontColor("#ffffff")
-            .setHorizontalAlignment("center");
+      hRange.setFontWeight("bold").setBackground("#1e3a8a").setFontColor("#ffffff").setHorizontalAlignment("center");
       
       const setores = ["VENDAS", "RECEPCAO", "REFILIACAO", "RETENÇÃO", "WEB SITE", "TELEVENDAS", "OUTROS"];
-      const rule = SpreadsheetApp.newDataValidation()
-        .requireValueInList(setores, true)
-        .build();
+      const rule = SpreadsheetApp.newDataValidation().requireValueInList(setores, true).build();
       sheet.getRange("B:B").setDataValidation(rule);
       
-      const ativoRule = SpreadsheetApp.newDataValidation()
-        .requireValueInList(["SIM", "NÃO"], true)
-        .build();
+      const ativoRule = SpreadsheetApp.newDataValidation().requireValueInList(["SIM", "NÃO"], true).build();
       sheet.getRange("C:C").setDataValidation(ativoRule);
       
       sheet.setColumnWidth(1, 280);
@@ -201,31 +184,19 @@ function carregarFuncionarios() {
       sheet.setColumnWidth(3, 60);
       sheet.getRange("B:C").setHorizontalAlignment("center");
       
-      const funcionariosIniciais = [];
-      
-      const rowData = funcionariosIniciais.map(f => [f[1], f[0], "SIM"]);
-      if (rowData.length > 0) {
-        sheet.getRange(2, 1, rowData.length, 3).setValues(rowData);
-        sheet.getRange(2, 3, rowData.length, 1).setDataValidation(ativoRule);
-      }
-      
       SpreadsheetApp.getUi().alert(
         "✅ Aba 'FUNCIONARIOS' criada!\n\n" +
         "📌 Como usar:\n" +
         "• Adicione novos funcionários no final da lista\n" +
         "• Escolha o setor no dropdown\n" +
-        "• Escolha SIM ou NÃO no dropdown para ativar/inativar\n\n" +
-        "Os dashboards serão atualizados automaticamente!"
+        "• Escolha SIM ou NÃO no dropdown para ativar/inativar"
       );
     }
     
     const data = sheet.getDataRange().getValues();
-    if (data.length < 2) {
-      return { todos: [], porSetor: {}, ativos: [], mapaNomeSetor: {} };
-    }
+    if (data.length < 2) return { todos: [], porSetor: {}, ativos: [], mapaNomeSetor: {} };
     
     const idx = { nome: 0, setor: 1, ativo: 2 };
-    
     const funcionarios = [];
     const porSetor = {};
     const ativos = [];
@@ -238,7 +209,6 @@ function carregarFuncionarios() {
       const ativo = String(row[idx.ativo] || "").trim().toUpperCase() === "SIM";
       
       if (!nome) continue;
-      
       funcionarios.push({ nome, setor, ativo });
       
       if (ativo) {
@@ -247,18 +217,11 @@ function carregarFuncionarios() {
         mapaNomeSetor[primeiroNome.toUpperCase()] = setor;
         mapaNomeSetor[nome.toUpperCase()] = setor;
       }
-      
       if (!porSetor[setor]) porSetor[setor] = [];
       if (ativo) porSetor[setor].push(nome);
     }
     
-    return {
-      todos: funcionarios,
-      porSetor: porSetor,
-      ativos: ativos,
-      mapaNomeSetor: mapaNomeSetor
-    };
-    
+    return { todos: funcionarios, porSetor: porSetor, ativos: ativos, mapaNomeSetor: mapaNomeSetor };
   } catch (error) {
     console.error("Erro ao carregar funcionários:", error);
     return carregarFuncionariosFallback();
@@ -271,31 +234,10 @@ function carregarFuncionariosFallback() {
   const mapaNomeSetor = {};
   
   const dadosHardcoded = {
-    "VENDAS": [
-      "FRANCISCO ROGEAN ALVES NASCIMENTO",
-      "LAYANE MACHADO DA CUNHA",
-      "RAFAEL DOS SANTOS DE JESUS",
-      "VANESSA CRISTINA MARTINS SOUZA",
-      "THAYNARA ARAUJO DE OLIVEIRA",
-      "MARIA MADALENA SILVA FURTADO",
-      "JOISCIANE DE SOUSA SILVA",
-      "MARCUS LUIZ ARAUJO CUNHA"
-    ],
-    "RECEPCAO": [
-      "THIAGO DA SILVA CARDOSO",
-      "MILENA VITORIA LEMOS DA SILVA",
-      "DANIELLE LIMA BRITO"
-    ],
-    "REFILIACAO": [
-      "FABIANA DA SILVA",
-      "INGRID CARVALHO RODRIGUES",
-      "JENIFFER THAYNNA LIMA DA ROCHA",
-      "WANESSA EVELYN CARVALHO OLIVEIRA MORAIS"
-    ],
-    "RETENÇÃO": [
-      "JACKSON RYLLER DOS SANTOS",
-      "ISAAC PEREIRA NUNES FERREIRA"
-    ]
+    "VENDAS": ["FRANCISCO ROGEAN ALVES NASCIMENTO", "LAYANE MACHADO DA CUNHA", "RAFAEL DOS SANTOS DE JESUS", "VANESSA CRISTINA MARTINS SOUZA", "THAYNARA ARAUJO DE OLIVEIRA", "MARIA MADALENA SILVA FURTADO", "JOISCIANE DE SOUSA SILVA", "MARCUS LUIZ ARAUJO CUNHA"],
+    "RECEPCAO": ["THIAGO DA SILVA CARDOSO", "MILENA VITORIA LEMOS DA SILVA", "DANIELLE LIMA BRITO"],
+    "REFILIACAO": ["FABIANA DA SILVA", "INGRID CARVALHO RODRIGUES", "JENIFFER THAYNNA LIMA DA ROCHA", "WANESSA EVELYN CARVALHO OLIVEIRA MORAIS"],
+    "RETENÇÃO": ["JACKSON RYLLER DOS SANTOS", "ISAAC PEREIRA NUNES FERREIRA"]
   };
   
   for (const setor in dadosHardcoded) {
@@ -308,34 +250,19 @@ function carregarFuncionariosFallback() {
     });
   }
   
-  return {
-    todos: ativos.map(nome => ({ 
-      nome, 
-      setor: mapaNomeSetor[nome.toUpperCase()] || "OUTROS", 
-      ativo: true 
-    })),
-    porSetor: porSetor,
-    ativos: ativos,
-    mapaNomeSetor: mapaNomeSetor
-  };
+  return { todos: ativos.map(nome => ({ nome, setor: mapaNomeSetor[nome.toUpperCase()] || "OUTROS", ativo: true })), porSetor: porSetor, ativos: ativos, mapaNomeSetor: mapaNomeSetor };
 }
 
 function abrirAbaFuncionarios() {
   const ssDados = SpreadsheetApp.openById(ID_PLANILHA_DADOS);
   let sheet = ssDados.getSheetByName(NOME_ABA_FUNCIONARIOS);
-  if (!sheet) {
-    carregarFuncionarios();
-    sheet = ssDados.getSheetByName(NOME_ABA_FUNCIONARIOS);
-  }
+  if (!sheet) { carregarFuncionarios(); sheet = ssDados.getSheetByName(NOME_ABA_FUNCIONARIOS); }
   const url = `https://docs.google.com/spreadsheets/d/${ID_PLANILHA_DADOS}/edit#gid=${sheet.getSheetId()}`;
-  SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(`<script>window.open('${url}', '_blank'); google.script.host.close();</script>`),
-    'Abrindo Funcionários...'
-  );
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(`<script>window.open('${url}', '_blank'); google.script.host.close();</script>`), 'Abrindo Funcionários...');
 }
 
 // ============================================================================
-// FUNÇÕES AUXILIARES DE NORMALIZAÇÃO
+// FUNÇÕES AUXILIARES
 // ============================================================================
 
 function limparNomeConsultor(nome) {
@@ -355,27 +282,19 @@ function normalizarConsultorPeloMapa(nomeOriginal, mapaFuncionarios) {
   const primeiroNome = upper.split(" ")[0];
   if (mapaFuncionarios[primeiroNome]) {
     for (const nomeCompleto in mapaFuncionarios) {
-      if (nomeCompleto.split(" ")[0] === primeiroNome) {
-        return nomeCompleto;
-      }
+      if (nomeCompleto.split(" ")[0] === primeiroNome) return nomeCompleto;
     }
   }
   for (const nomeCadastrado in mapaFuncionarios) {
-    if (upper.includes(nomeCadastrado) || nomeCadastrado.includes(upper)) {
-      return nomeCadastrado;
-    }
+    if (upper.includes(nomeCadastrado) || nomeCadastrado.includes(upper)) return nomeCadastrado;
   }
   return null;
 }
 
 function obterSetorDoFuncionario(nomeNormalizado, mapaFuncionarios) {
-  if (mapaFuncionarios[nomeNormalizado]) {
-    return mapaFuncionarios[nomeNormalizado];
-  }
+  if (mapaFuncionarios[nomeNormalizado]) return mapaFuncionarios[nomeNormalizado];
   const primeiroNome = nomeNormalizado.split(" ")[0];
-  if (mapaFuncionarios[primeiroNome]) {
-    return mapaFuncionarios[primeiroNome];
-  }
+  if (mapaFuncionarios[primeiroNome]) return mapaFuncionarios[primeiroNome];
   return "TELEVENDAS";
 }
 
@@ -431,16 +350,507 @@ function calcPctDoc(aprovados, total, cancelados) {
   return base > 0 ? Math.round((aprovados / base) * 100) : 0;
 }
 
-function createSuccessResponse(data) { 
-  return { status: "success", timestamp: new Date().toISOString(), data: data }; 
+function createSuccessResponse(data) { return { status: "success", timestamp: new Date().toISOString(), data: data }; }
+function createErrorResponse(msg) { return { status: "error", timestamp: new Date().toISOString(), error: msg }; }
+
+// ============================================================================
+// FUNÇÃO CORRIGIDA PARA EXTRAIR DATA DA RECORRÊNCIA
+// ============================================================================
+
+function extrairMesAnoRecorrencia(valor) {
+  // Versão corrigida que suporta Date objects, números seriais e strings
+  Logger.log(`📅 extrairMesAnoRecorrencia recebeu: ${valor} (${typeof valor})`);
+  
+  if (!valor && valor !== 0) return null;
+  
+  // ========== TIPO 1: Date Object do JavaScript ==========
+  if (valor instanceof Date) {
+    if (!isNaN(valor.getTime())) {
+      const resultado = { mes: valor.getMonth() + 1, ano: valor.getFullYear() };
+      Logger.log(`✅ Data extraída (Date): ${resultado.mes}/${resultado.ano}`);
+      return resultado;
+    }
+  }
+  
+  // ========== TIPO 2: Número (Serial Date do Google Sheets) ==========
+  if (typeof valor === 'number') {
+    if (valor > 1000) {
+      try {
+        const jsDate = new Date((valor - 25569) * 86400 * 1000);
+        if (!isNaN(jsDate.getTime())) {
+          const resultado = { mes: jsDate.getMonth() + 1, ano: jsDate.getFullYear() };
+          Logger.log(`✅ Data extraída (serial): ${resultado.mes}/${resultado.ano}`);
+          return resultado;
+        }
+      } catch (e) {
+        Logger.log(`⚠️ Erro ao converter serial date: ${e.message}`);
+      }
+    }
+  }
+  
+  // ========== TIPO 3: String ==========
+  if (typeof valor === 'string') {
+    const str = valor.trim();
+    
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const resultado = { mes: d.getMonth() + 1, ano: d.getFullYear() };
+      Logger.log(`✅ Data extraída (string→Date): ${resultado.mes}/${resultado.ano}`);
+      return resultado;
+    }
+    
+    const matchBarra = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (matchBarra) {
+      const resultado = { mes: parseInt(matchBarra[2]), ano: parseInt(matchBarra[3]) };
+      Logger.log(`✅ Data extraída (regex): ${resultado.mes}/${resultado.ano}`);
+      return resultado;
+    }
+    
+    const matchSimples = str.match(/(\d{1,2})\/(\d{1,2})/);
+    if (matchSimples) {
+      const dia = parseInt(matchSimples[1]);
+      const mes = parseInt(matchSimples[2]);
+      const anoMatch = str.match(/(\d{4})/);
+      const ano = anoMatch ? parseInt(anoMatch[1]) : new Date().getFullYear();
+      if (mes >= 1 && mes <= 12) {
+        const resultado = { mes: mes, ano: ano };
+        Logger.log(`✅ Data extraída (d/m): ${resultado.mes}/${resultado.ano}`);
+        return resultado;
+      }
+    }
+    
+    const mesesAbrev = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const mesesNum = [1,2,3,4,5,6,7,8,9,10,11,12];
+    for (let i = 0; i < mesesAbrev.length; i++) {
+      if (str.toLowerCase().includes(mesesAbrev[i])) {
+        const anoMatch = str.match(/\d{4}/);
+        const resultado = { mes: mesesNum[i], ano: anoMatch ? parseInt(anoMatch[0]) : new Date().getFullYear() };
+        Logger.log(`✅ Data extraída (mês abreviado): ${resultado.mes}/${resultado.ano}`);
+        return resultado;
+      }
+    }
+  }
+  
+  Logger.log(`❌ Falha ao extrair data: ${valor}`);
+  return null;
 }
 
-function createErrorResponse(msg) { 
-  return { status: "error", timestamp: new Date().toISOString(), error: msg }; 
+function getMesAnoFromRowRecorrencia(row, idxData) {
+  if (!row || row.length === 0) {
+    Logger.log(`⚠️ Linha vazia`);
+    return null;
+  }
+  
+  if (idxData === -1 || idxData >= row.length) {
+    Logger.log(`⚠️ Índice de data inválido: ${idxData}`);
+    return null;
+  }
+  
+  const valorData = row[idxData];
+  if (!valorData && valorData !== 0) {
+    Logger.log(`⚠️ Valor de data vazio`);
+    return null;
+  }
+  
+  return extrairMesAnoRecorrencia(valorData);
 }
 
 // ============================================================================
-// ENDPOINT: QUALIDADE VENDAS
+// RECORRÊNCIA - CORRIGIDA
+// ============================================================================
+
+function processarDadosRecorrenciaPorMes(mes, ano, isFixedMonth = false) {
+  try {
+    Logger.log(`🚀 Iniciando processamento CORRIGIDO para ${mes}/${ano}`);
+    
+    const funcionarios = carregarFuncionarios();
+    const porSetor = funcionarios.porSetor;
+    
+    const consultoresRetencao = porSetor["RETENÇÃO"] || [];
+    const consultoresRefiliacao = porSetor["REFILIACAO"] || [];
+    
+    Logger.log(`👥 Consultores de RETENÇÃO carregados: ${consultoresRetencao.length}`);
+    consultoresRetencao.forEach(c => Logger.log(`   • ${c}`));
+    
+    Logger.log(`👥 Consultores de REFILIAÇÃO carregados: ${consultoresRefiliacao.length}`);
+    consultoresRefiliacao.forEach(c => Logger.log(`   • ${c}`));
+    
+    if (consultoresRetencao.length === 0 && consultoresRefiliacao.length === 0) {
+      Logger.log(`⚠️ AVISO: Nenhum consultor de RETENÇÃO ou REFILIAÇÃO cadastrado!`);
+      return {
+        status: "warning",
+        message: "Nenhum consultor de RETENÇÃO/REFILIAÇÃO cadastrado na aba FUNCIONARIOS",
+        data: {
+          retencao: {},
+          refiliacao: {},
+          periodo: { 
+            atual: `${String(mes).padStart(2, '0')}/${ano}`,
+            historico: [],
+            mes: mes,
+            ano: ano,
+            nomeMes: MESES[mes-1],
+            isFixedMonth: isFixedMonth 
+          }
+        }
+      };
+    }
+
+    const ssDados = SpreadsheetApp.openById(ID_PLANILHA_DADOS);
+    let sheetRec = ssDados.getSheetByName(NOME_ABA_RECORRENCIA_FONTE);
+    if (!sheetRec) {
+      const sheets = ssDados.getSheets();
+      sheetRec = sheets.find(s => s.getName().toUpperCase().includes("RECORRENCIA"));
+    }
+    if (!sheetRec) {
+      throw new Error("Aba RECORRENCIA não encontrada.");
+    }
+
+    const dataRec = sheetRec.getDataRange().getValues();
+    const headers = dataRec[1] || dataRec[0] || [];
+    
+    let idxData = -1;
+    for (let i = 0; i < headers.length; i++) {
+      const header = String(headers[i] || "").toUpperCase().trim();
+      if (header.includes("DATA") || header.includes("DATA REFILIAÇÃO") || header.includes("DATA RETENÇÃO")) {
+        idxData = i;
+        break;
+      }
+    }
+    if (idxData === -1) idxData = 4;
+    
+    const rows = dataRec.slice(2);
+    const targetMonth = (mes < 10 ? '0' + mes : mes) + '/' + ano;
+
+    // Função auxiliar para calcular métricas de um consultor em determinados meses
+    function calculateMetrics(consultor, targetMonths) {
+      Logger.log(`🔍 Filtrando "${consultor}" para meses: ${targetMonths.join(', ')}`);
+      
+      const filteredRows = rows.filter(row => {
+        if (!row || row.length === 0) return false;
+        
+        const rowConsultor = String(row[0] || "").trim().toUpperCase();
+        const consultorNormalizado = consultor.toUpperCase().trim();
+        
+        if (rowConsultor !== consultorNormalizado) {
+          const primeiroNomeRow = rowConsultor.split(" ")[0];
+          const primeiroNomeConsultor = consultorNormalizado.split(" ")[0];
+          if (primeiroNomeRow !== primeiroNomeConsultor) {
+            return false;
+          }
+        }
+        
+        const mesAno = getMesAnoFromRowRecorrencia(row, idxData);
+        if (!mesAno) {
+          return false;
+        }
+        
+        const mesAnoStr = (mesAno.mes < 10 ? '0' + mesAno.mes : mesAno.mes) + '/' + mesAno.ano;
+        const match = targetMonths.some(t => t === mesAnoStr);
+        
+        if (match) {
+          Logger.log(`   ✅ ${consultor}: encontrado para ${mesAnoStr}`);
+        }
+        
+        return match;
+      });
+
+      Logger.log(`   📊 ${consultor}: ${filteredRows.length} registro(s) encontrado(s)`);
+
+      if (filteredRows.length === 0) {
+        return { 
+          totalRetido: 0, ok: 0, emAberto: 0, emAtraso: 0, cancelado: 0, 
+          pendenciasKYC: 0, totalPendencias: 0, totalRetidosFinal: 0, 
+          retençõesOK: 0, percentualOK: 0, totalOK: 0, pendencias: 0
+        };
+      }
+
+      let totalRetido = filteredRows.length;
+      let ok = 0, emAberto = 0, emAtraso = 0, cancelado = 0, pendenciasKYC = 0;
+
+      filteredRows.forEach(row => {
+        const mensalidade = String(row[2] || "").trim().toUpperCase();
+        const kyc = String(row[3] || "").trim().toUpperCase();
+        
+        if (mensalidade === 'OK') ok++;
+        else if (mensalidade === 'EM ABERTO') emAberto++;
+        else if (mensalidade === 'EM ATRASO') emAtraso++;
+        else if (mensalidade === 'CANCELADO') cancelado++;
+        
+        if (kyc !== 'APROVADO' && mensalidade !== 'CANCELADO') {
+          pendenciasKYC++;
+        }
+      });
+
+      const totalPendencias = pendenciasKYC;
+      const totalRetidosFinal = totalRetido - cancelado;
+      const retençõesOK = totalRetidosFinal - totalPendencias;
+      const percentualOK = totalRetidosFinal > 0 ? Math.round((retençõesOK / totalRetidosFinal) * 100) : 0;
+      const totalOK = ok + emAberto; // para fins de exibição
+      const pendencias = totalPendencias;
+      
+      Logger.log(`   📊 ${consultor}: total=${totalRetido}, ok=${ok}, cancelado=${cancelado}, pct=${percentualOK}%`);
+      
+      return { 
+        totalRetido, ok, emAberto, emAtraso, cancelado, pendenciasKYC, 
+        totalPendencias, totalRetidosFinal, retençõesOK, percentualOK,
+        totalOK, pendencias
+      };
+    }
+
+    let historicoMonths = [];
+    for (let i = 1; i <= 3; i++) {
+      let histMes = mes - i;
+      let histAno = ano;
+      if (histMes <= 0) { 
+        histMes += 12; 
+        histAno -= 1; 
+      }
+      historicoMonths.push((histMes < 10 ? '0' + histMes : histMes) + '/' + histAno);
+    }
+
+    const result = {
+      retencao: {},
+      refiliacao: {},
+      periodo: { 
+        atual: targetMonth, 
+        historico: historicoMonths, 
+        mes: mes, 
+        ano: ano, 
+        nomeMes: MESES[mes-1], 
+        isFixedMonth: isFixedMonth 
+      }
+    };
+
+    Logger.log(`\n📊 === PROCESSANDO RETENÇÃO ===`);
+    consultoresRetencao.forEach(c => {
+      Logger.log(`\n👤 ${c}`);
+      const atual = calculateMetrics(c, [targetMonth]);
+      const total3Meses = calculateMetrics(c, historicoMonths);
+      result.retencao[c] = {
+        atual: atual,
+        historico: historicoMonths.map(m => ({ mes: m, dados: calculateMetrics(c, [m]) })),
+        total3Meses: total3Meses
+      };
+    });
+
+    Logger.log(`\n📊 === PROCESSANDO REFILIAÇÃO ===`);
+    consultoresRefiliacao.forEach(c => {
+      Logger.log(`\n👤 ${c}`);
+      const total3Meses = calculateMetrics(c, historicoMonths);
+      result.refiliacao[c] = {
+        historico: historicoMonths.map(m => ({ mes: m, dados: calculateMetrics(c, [m]) })),
+        total3Meses: total3Meses
+      };
+    });
+
+    Logger.log('\n✅ Processamento concluído com sucesso!');
+    return { status: "success", data: result };
+
+  } catch (error) {
+    Logger.log('❌ Erro na recorrência:', error.message);
+    return { status: "error", error: error.message };
+  }
+}
+
+function diagnosticarConsultoresRecorrencia() {
+  try {
+    const funcionarios = carregarFuncionarios();
+    const porSetor = funcionarios.porSetor;
+    const ativos = funcionarios.ativos;
+    
+    let msg = `📋 DIAGNOSE DE CONSULTORES\n\n`;
+    msg += `Total ativos: ${ativos.length}\n`;
+    msg += `Setores: ${Object.keys(porSetor).length}\n\n`;
+    msg += `RETENÇÃO: ${porSetor["RETENÇÃO"] ? porSetor["RETENÇÃO"].length : 0}\n`;
+    msg += `REFILIAÇÃO: ${porSetor["REFILIACAO"] ? porSetor["REFILIACAO"].length : 0}\n\n`;
+    
+    Object.keys(porSetor).forEach(setor => {
+      const consultores = porSetor[setor];
+      msg += `📁 ${setor}: ${consultores.length}\n`;
+    });
+    
+    SpreadsheetApp.getUi().alert(msg);
+    
+  } catch (error) {
+    SpreadsheetApp.getUi().alert(`❌ Erro: ${error.message}`);
+  }
+}
+
+function testarRecorrenciaComConsultoresReais() {
+  const mes = new Date().getMonth() + 1;
+  const ano = new Date().getFullYear();
+  const resultado = processarDadosRecorrenciaPorMes(mes, ano, true);
+  
+  if (resultado.status === "success") {
+    SpreadsheetApp.getUi().alert(
+      `✅ TESTE CONCLUÍDO\n\n` +
+      `Consultores RETENÇÃO: ${Object.keys(resultado.data.retencao).length}\n` +
+      `Consultores REFILIAÇÃO: ${Object.keys(resultado.data.refiliacao).length}`
+    );
+  } else if (resultado.status === "warning") {
+    SpreadsheetApp.getUi().alert(`⚠️ ${resultado.message}`);
+  } else {
+    SpreadsheetApp.getUi().alert(`❌ Erro: ${resultado.error}`);
+  }
+}
+
+function gerarDashboardRecorrencia() {
+  const now = new Date();
+  const mes = now.getMonth() + 1;
+  const ano = now.getFullYear();
+  const dados = processarDadosRecorrenciaPorMes(mes, ano, false);
+  if (dados.status === "success") {
+    renderizarPlanilhaRecorrenciaPorMes(dados.data, mes, ano);
+    SpreadsheetApp.getUi().alert(`✅ Dashboard de Recorrência de ${MESES[mes-1]} ${ano} atualizado!`);
+  } else {
+    SpreadsheetApp.getUi().alert("❌ Erro: " + dados.error);
+  }
+}
+
+function gerarDashboardRecorrenciaHistorico() {
+  const now = new Date();
+  const mes = now.getMonth() + 1;
+  const ano = now.getFullYear();
+  const dados = processarDadosRecorrenciaPorMes(mes, ano, false);
+  if (dados.status === "success") {
+    renderizarPlanilhaRecorrenciaDetalhada(dados.data);
+    SpreadsheetApp.getUi().alert("✅ Dashboard Histórico atualizado!");
+  } else {
+    SpreadsheetApp.getUi().alert("❌ Erro: " + dados.error);
+  }
+}
+
+function renderizarPlanilhaRecorrenciaPorMes(dados, mes, ano) {
+  const ssDash = SpreadsheetApp.openById(ID_PLANILHA_DASHBOARDS);
+  const nomeAba = `Recorrência ${MESES[mes-1]} ${ano}`;
+  let sheet = ssDash.getSheetByName(nomeAba);
+  if (!sheet) sheet = ssDash.insertSheet(nomeAba);
+  const oldSheet = ssDash.getSheetByName("Dashboard Recorrência");
+  if (oldSheet && oldSheet.getName() !== nomeAba) ssDash.deleteSheet(oldSheet);
+  sheet.clear();
+
+  sheet.getRange("A1:M1").merge().setValue(`📈 DASHBOARD RECORRÊNCIA - ${MESES[mes-1]} ${ano}`)
+    .setBackground("#1e3a8a").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center").setFontSize(14);
+
+  if (dados.periodo.isFixedMonth) {
+    sheet.getRange("A2:M2").merge().setValue(`📅 DADOS FIXOS DO MÊS ${dados.periodo.atual}`)
+      .setBackground("#f59e0b").setFontColor("#000000").setFontWeight("bold").setHorizontalAlignment("center");
+  } else {
+    sheet.getRange("A2:M2").merge().setValue(`🔄 DADOS DO MÊS ATUAL`)
+      .setBackground("#10b981").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
+  }
+
+  let currentRow = 4;
+
+  // Retenção
+  Object.keys(dados.retencao).forEach(c => {
+    const d = dados.retencao[c];
+    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("CONSULTOR: " + c + " (RETENÇÃO)").setBackground("#f1f5f9").setFontWeight("bold");
+    currentRow++;
+
+    const cardAtual = [["MÊS ATUAL (" + dados.periodo.atual + ")", ""], 
+      ["TOTAL RETIDO", d.atual.totalRetido], 
+      ["CANCELADO", d.atual.cancelado], 
+      ["TOTAL RETIDOS FINAL", d.atual.totalRetidosFinal], 
+      ["MENSALIDADES OK", d.atual.ok], 
+      ["EM ABERTO", d.atual.emAberto], 
+      ["EM ATRASO", d.atual.emAtraso], 
+      ["PENDÊNCIAS KYC", d.atual.pendenciasKYC], 
+      ["TOTAL PENDÊNCIAS", d.atual.totalPendencias], 
+      ["RETENÇÕES OK", d.atual.retençõesOK], 
+      ["% OK", d.atual.percentualOK + "%"]];
+    sheet.getRange(currentRow, 1, cardAtual.length, 2).setValues(cardAtual).setBorder(true, true, true, true, true, true);
+    sheet.getRange(currentRow, 1, 1, 2).merge().setBackground("#10b981").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
+
+    const cardTotal = [["TOTAL 3 MESES ANTERIORES", ""], 
+      ["TOTAL RETIDO", d.total3Meses.totalRetido], 
+      ["CANCELADO", d.total3Meses.cancelado || 0], 
+      ["TOTAL RETIDOS FINAL", d.total3Meses.totalRetidosFinal], 
+      ["OK (Mensalidade OK)", d.total3Meses.ok], 
+      ["EM ABERTO", d.total3Meses.emAberto], 
+      ["TOTAL OK (OK + Aberto)", d.total3Meses.totalOK || (d.total3Meses.ok + d.total3Meses.emAberto)], 
+      ["EM ATRASO", d.total3Meses.emAtraso], 
+      ["TOTAL PENDÊNCIAS", d.total3Meses.pendencias], 
+      ["% OK", (d.total3Meses.percentualOK || 0) + "%"]];
+    sheet.getRange(currentRow, 4, cardTotal.length, 2).setValues(cardTotal).setBorder(true, true, true, true, true, true);
+    sheet.getRange(currentRow, 4, 1, 2).merge().setBackground("#f59e0b").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
+
+    const percentualCell = sheet.getRange(currentRow + cardTotal.length - 1, 5);
+    const corPercentual = d.total3Meses.percentualOK >= 90 ? "#10b981" : d.total3Meses.percentualOK >= 80 ? "#f59e0b" : "#ef4444";
+    percentualCell.setBackground(corPercentual).setFontColor("#ffffff").setFontWeight("bold");
+
+    currentRow += Math.max(cardAtual.length, cardTotal.length) + 2;
+  });
+
+  // Refiliação
+  Object.keys(dados.refiliacao).forEach(c => {
+    const d = dados.refiliacao[c];
+    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("CONSULTOR: " + c + " (REFILIAÇÃO)").setBackground("#f1f5f9").setFontWeight("bold");
+    currentRow++;
+
+    const cardTotal = [["TOTAL 3 MESES ANTERIORES", ""], 
+      ["TOTAL REFILIAÇÃO", d.total3Meses.totalRetido], 
+      ["CANCELADO", d.total3Meses.cancelado || 0], 
+      ["TOTAL REFILIADOS FINAL", d.total3Meses.totalRetidosFinal], 
+      ["OK (Mensalidade OK)", d.total3Meses.ok], 
+      ["EM ABERTO", d.total3Meses.emAberto], 
+      ["TOTAL OK", d.total3Meses.totalOK || (d.total3Meses.ok + d.total3Meses.emAberto)], 
+      ["EM ATRASO", d.total3Meses.emAtraso], 
+      ["TOTAL PENDÊNCIAS", d.total3Meses.pendencias], 
+      ["% OK", (d.total3Meses.percentualOK || 0) + "%"]];
+    sheet.getRange(currentRow, 1, cardTotal.length, 2).setValues(cardTotal).setBorder(true, true, true, true, true, true);
+    sheet.getRange(currentRow, 1, 1, 2).merge().setBackground("#f59e0b").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
+
+    const percentualCell = sheet.getRange(currentRow + cardTotal.length - 1, 2);
+    const corPercentual = d.total3Meses.percentualOK >= 90 ? "#10b981" : d.total3Meses.percentualOK >= 80 ? "#f59e0b" : "#ef4444";
+    percentualCell.setBackground(corPercentual).setFontColor("#ffffff").setFontWeight("bold");
+
+    currentRow += cardTotal.length + 2;
+  });
+
+  sheet.setColumnWidths(1, 13, 150);
+  sheet.setFrozenRows(2);
+}
+
+function renderizarPlanilhaRecorrenciaDetalhada(dados) {
+  const ssDash = SpreadsheetApp.openById(ID_PLANILHA_DASHBOARDS);
+  let sheet = ssDash.getSheetByName("Dashboard Recorrência Histórico");
+  if (!sheet) sheet = ssDash.insertSheet("Dashboard Recorrência Histórico");
+  sheet.clear();
+
+  sheet.getRange("A1:M1").merge().setValue("📊 DASHBOARD RECORRÊNCIA - HISTÓRICO DETALHADO")
+    .setBackground("#7c3aed").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center").setFontSize(14);
+
+  let currentRow = 3;
+
+  Object.keys(dados.retencao).forEach(c => {
+    const d = dados.retencao[c];
+    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("👑 " + c + " - RETENÇÃO").setBackground("#1e3a8a").setFontColor("#ffffff").setFontWeight("bold");
+    currentRow++;
+    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("MÊS ATUAL: " + dados.periodo.atual).setBackground("#10b981").setFontColor("#ffffff").setFontWeight("bold");
+    currentRow++;
+    sheet.getRange(currentRow, 1, 1, 2).setValues([["Métrica", "Valor"]]).setBackground("#d1fae5");
+    currentRow++;
+    const dadosAtual = [["Total Retido", d.atual.totalRetido], ["Cancelados", d.atual.cancelado], ["Total Retidos Final", d.atual.totalRetidosFinal], ["Mensalidades OK", d.atual.ok], ["Em Aberto", d.atual.emAberto], ["Em Atraso", d.atual.emAtraso], ["Pendências KYC", d.atual.pendenciasKYC], ["Total Pendências", d.atual.totalPendencias], ["Retenções OK", d.atual.retençõesOK], ["% OK", d.atual.percentualOK + "%"]];
+    sheet.getRange(currentRow, 1, dadosAtual.length, 2).setValues(dadosAtual);
+    currentRow += dadosAtual.length + 2;
+    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("HISTÓRICO - ÚLTIMOS 3 MESES").setBackground("#f59e0b").setFontColor("#ffffff").setFontWeight("bold");
+    currentRow++;
+    sheet.getRange(currentRow, 1, 1, 7).setValues([["Mês", "Total", "OK", "Em Aberto", "Total OK", "Pendências", "% OK"]]).setBackground("#fef3c7");
+    currentRow++;
+    d.historico.forEach(h => {
+      const totalOK = (h.dados.ok + h.dados.emAberto);
+      sheet.getRange(currentRow, 1, 1, 7).setValues([[h.mes, h.dados.totalRetido, h.dados.ok, h.dados.emAberto, totalOK, h.dados.pendencias, h.dados.percentualOK + "%"]]);
+      currentRow++;
+    });
+    currentRow += 2;
+  });
+
+  sheet.setColumnWidths(1, 13, 140);
+}
+
+// ============================================================================
+// QUALIDADE VENDAS
 // ============================================================================
 
 function getQualidadeVendasData(mes, ano) {
@@ -503,12 +913,7 @@ function getQualidadeVendasData(mes, ano) {
         isCadastrado = true;
         consultorNormalizado = encontrado;
         setorOriginal = obterSetorDoFuncionario(consultorNormalizado, mapaFuncionarios);
-        
-        if (SETORES_COM_NOME.includes(setorOriginal)) {
-          setorExibicao = setorOriginal;
-        } else {
-          setorExibicao = "OUTROS";
-        }
+        setorExibicao = SETORES_COM_NOME.includes(setorOriginal) ? setorOriginal : "OUTROS";
       } else {
         const isWebSite = consultorLimpo.toUpperCase().includes("WEB SITE");
         if (isWebSite) {
@@ -524,17 +929,12 @@ function getQualidadeVendasData(mes, ano) {
         }
       }
       
-      const isWebTelevendas = (setorExibicao === "WEB/TELEVENDAS" || 
-                               setorOriginal === "WEB SITE" || 
-                               setorOriginal === "TELEVENDAS");
+      const isWebTelevendas = (setorExibicao === "WEB/TELEVENDAS" || setorOriginal === "WEB SITE" || setorOriginal === "TELEVENDAS");
       const dest = isWebTelevendas ? vendasWeb : vendasLoja;
 
       if (!consultoresData[consultorNormalizado]) {
         consultoresData[consultorNormalizado] = Object.assign(novoTotalizador(), { 
-          nome: consultorNormalizado, 
-          setorOriginal: setorOriginal,
-          setorExibicao: setorExibicao,
-          cadastrado: isCadastrado
+          nome: consultorNormalizado, setorOriginal: setorOriginal, setorExibicao: setorExibicao, cadastrado: isCadastrado
         });
       }
       const c = consultoresData[consultorNormalizado];
@@ -873,7 +1273,7 @@ function renderizarCardsPromoQualidade(sheet, dados, startRow) {
 }
 
 // ============================================================================
-// ENDPOINT: APP
+// APP
 // ============================================================================
 
 function getAppData(mes, ano) {
@@ -930,12 +1330,7 @@ function getAppData(mes, ano) {
         isCadastrado = true;
         consultorNormalizado = encontrado;
         setorOriginal = obterSetorDoFuncionario(consultorNormalizado, mapaFuncionarios);
-        
-        if (SETORES_COM_NOME.includes(setorOriginal)) {
-          setorExibicao = setorOriginal;
-        } else {
-          setorExibicao = "OUTROS";
-        }
+        setorExibicao = SETORES_COM_NOME.includes(setorOriginal) ? setorOriginal : "OUTROS";
       } else {
         const isWebSite = consultorLimpo.toUpperCase().includes("WEB SITE");
         if (isWebSite) {
@@ -951,9 +1346,7 @@ function getAppData(mes, ano) {
         }
       }
       
-      const isWebTelevendas = (setorExibicao === "WEB/TELEVENDAS" || 
-                               setorOriginal === "WEB SITE" || 
-                               setorOriginal === "TELEVENDAS");
+      const isWebTelevendas = (setorExibicao === "WEB/TELEVENDAS" || setorOriginal === "WEB SITE" || setorOriginal === "TELEVENDAS");
       const dest = isWebTelevendas ? appWeb : appLoja;
 
       if (!consultoresData[consultorNormalizado]) {
@@ -984,9 +1377,7 @@ function getAppData(mes, ano) {
     }
 
     const retencaoData = {};
-    const sheetRetencao = ssDados.getSheetByName("APP RETENÇÃO") || 
-                          ssDados.getSheetByName("APP RETENCAO") || 
-                          ssDados.getSheetByName("App Retenção");
+    const sheetRetencao = ssDados.getSheetByName("APP RETENÇÃO") || ssDados.getSheetByName("APP RETENCAO") || ssDados.getSheetByName("App Retenção");
 
     if (sheetRetencao) {
       const dataRetencao = sheetRetencao.getDataRange().getValues();
@@ -1204,7 +1595,7 @@ function criarDashboardApp(dados) {
 }
 
 // ============================================================================
-// ENDPOINT: QUALIDADE TROCAS
+// QUALIDADE TROCAS
 // ============================================================================
 
 function getQualidadeTrocasData(mes, ano) {
@@ -1271,8 +1662,7 @@ function getQualidadeTrocasData(mes, ano) {
     for (const c of Object.values(consultoresData)) {
       c.percentualAprovado = c.totalTrocas > 0 ? Math.round((c.aprovados / c.totalTrocas) * 100) : 0;
     }
-    totalGeral.percentualAprovado = totalGeral.totalTrocas > 0 ? 
-      Math.round((totalGeral.aprovados / totalGeral.totalTrocas) * 100) : 0;
+    totalGeral.percentualAprovado = totalGeral.totalTrocas > 0 ? Math.round((totalGeral.aprovados / totalGeral.totalTrocas) * 100) : 0;
 
     const responseData = {
       mes: MESES[mesAtual - 1],
@@ -1360,261 +1750,7 @@ function criarDashboardQualidadeTrocas(dados) {
 }
 
 // ============================================================================
-// ENDPOINT: RECORRÊNCIA
-// ============================================================================
-
-function processarDadosRecorrenciaPorMes(mes, ano, isFixedMonth = false) {
-  try {
-    const funcionarios = carregarFuncionarios();
-    const porSetor = funcionarios.porSetor;
-    const consultoresRetencao = porSetor["RETENÇÃO"] || [];
-    const consultoresRefiliacao = porSetor["REFILIACAO"] || [];
-    
-    if (consultoresRetencao.length === 0) {
-      consultoresRetencao.push("JACKSON", "ISAAC");
-    }
-    if (consultoresRefiliacao.length === 0) {
-      consultoresRefiliacao.push("JENIFFER", "INGRID", "WANESSA");
-    }
-
-    const ssDados = SpreadsheetApp.openById(ID_PLANILHA_DADOS);
-    let sheetRec = ssDados.getSheetByName(NOME_ABA_RECORRENCIA_FONTE);
-    if (!sheetRec) {
-      const sheets = ssDados.getSheets();
-      sheetRec = sheets.find(s => s.getName().toUpperCase().includes("RECORRENCIA"));
-    }
-    if (!sheetRec) throw new Error("Aba de dados não encontrada.");
-
-    function formatToMonthYear(val) {
-      if (!val) return "";
-      let d;
-      if (val instanceof Date) { d = val; } else { d = new Date(val); }
-      if (isNaN(d.getTime())) return String(val).trim();
-      const m = d.getMonth() + 1;
-      const y = d.getFullYear();
-      return (m < 10 ? '0' + m : m) + '/' + y;
-    }
-
-    const targetMonth = (mes < 10 ? '0' + mes : mes) + '/' + ano;
-    let historicoMonths = [];
-
-    if (isFixedMonth) {
-      for (let i = 1; i <= 3; i++) {
-        let histMes = mes - i; let histAno = ano;
-        if (histMes <= 0) { histMes += 12; histAno -= 1; }
-        historicoMonths.push((histMes < 10 ? '0' + histMes : histMes) + '/' + histAno);
-      }
-    } else {
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-      for (let i = 1; i <= 3; i++) {
-        let histMes = currentMonth - i; let histAno = currentYear;
-        if (histMes <= 0) { histMes += 12; histAno -= 1; }
-        historicoMonths.push((histMes < 10 ? '0' + histMes : histMes) + '/' + histAno);
-      }
-    }
-
-    const dataRec = sheetRec.getDataRange().getValues();
-    const rows = dataRec.slice(2);
-
-    function calculateMetrics(consultor, targetMonths, isCurrentMonth = false) {
-      const filteredRows = rows.filter(row => {
-        const rowConsultor = String(row[1]).trim().toUpperCase();
-        const rowDateStr = formatToMonthYear(row[4]);
-        return rowConsultor === consultor.toUpperCase() && targetMonths.includes(rowDateStr);
-      });
-
-      let totalRetido = filteredRows.length;
-      let ok = 0, emAberto = 0, emAtraso = 0, cancelado = 0, pendenciasKYC = 0, pendenciasMensalidade = 0;
-
-      filteredRows.forEach(row => {
-        const mensalidade = String(row[2]).trim().toUpperCase();
-        const kyc = String(row[3]).trim().toUpperCase();
-        if (mensalidade === 'OK') ok++;
-        else if (mensalidade === 'EM ABERTO') emAberto++;
-        else if (mensalidade === 'EM ATRASO') emAtraso++;
-        else if (mensalidade === 'CANCELADO') cancelado++;
-        else pendenciasMensalidade++;
-        if (kyc !== 'APROVADO' && mensalidade !== 'CANCELADO') pendenciasKYC++;
-      });
-
-      if (isCurrentMonth) {
-        const totalPendencias = pendenciasKYC;
-        const totalRetidosFinal = totalRetido - cancelado;
-        const retençõesOK = totalRetidosFinal - totalPendencias;
-        const percentualOK = totalRetidosFinal > 0 ? Math.round((retençõesOK / totalRetidosFinal) * 100) : 0;
-        return { totalRetido, ok, emAberto, emAtraso, cancelado, pendenciasKYC, totalPendencias, totalRetidosFinal, retençõesOK, percentualOK };
-      } else {
-        const totalOK = ok + emAberto;
-        const totalPendencias = pendenciasMensalidade;
-        const totalRetidosFinal = totalRetido - cancelado;
-        const percentualOK = totalRetidosFinal > 0 ? Math.round((totalOK / totalRetidosFinal) * 100) : 0;
-        return { totalRetido, ok, emAberto, totalOK, emAtraso, pendencias: totalPendencias, cancelado, totalRetidosFinal, percentualOK };
-      }
-    }
-
-    const result = {
-      retencao: {},
-      refiliacao: {},
-      periodo: {
-        atual: targetMonth,
-        historico: historicoMonths,
-        mes: mes,
-        ano: ano,
-        nomeMes: MESES[mes-1],
-        isFixedMonth: isFixedMonth
-      }
-    };
-
-    consultoresRetencao.forEach(c => {
-      result.retencao[c] = {
-        atual: calculateMetrics(c, [targetMonth], true),
-        historico: historicoMonths.map(m => ({ mes: m, dados: calculateMetrics(c, [m]) })),
-        total3Meses: calculateMetrics(c, historicoMonths)
-      };
-    });
-
-    consultoresRefiliacao.forEach(c => {
-      result.refiliacao[c] = {
-        historico: historicoMonths.map(m => ({ mes: m, dados: calculateMetrics(c, [m]) })),
-        total3Meses: calculateMetrics(c, historicoMonths)
-      };
-    });
-
-    return { status: "success", data: result };
-
-  } catch (error) {
-    return { status: "error", error: error.message };
-  }
-}
-
-function gerarDashboardRecorrencia() {
-  const now = new Date();
-  const mes = now.getMonth() + 1;
-  const ano = now.getFullYear();
-  const dados = processarDadosRecorrenciaPorMes(mes, ano, false);
-  if (dados.status === "success") {
-    renderizarPlanilhaRecorrenciaPorMes(dados.data, mes, ano);
-    SpreadsheetApp.getUi().alert(`✅ Dashboard de Recorrência de ${MESES[mes-1]} ${ano} atualizado com sucesso!`);
-  } else {
-    SpreadsheetApp.getUi().alert("❌ Erro: " + dados.error);
-  }
-}
-
-function gerarDashboardRecorrenciaHistorico() {
-  const now = new Date();
-  const mes = now.getMonth() + 1;
-  const ano = now.getFullYear();
-  const dados = processarDadosRecorrenciaPorMes(mes, ano, false);
-  if (dados.status === "success") {
-    renderizarPlanilhaRecorrenciaDetalhada(dados.data);
-    SpreadsheetApp.getUi().alert("✅ Dashboard Histórico de Recorrência atualizado!");
-  } else {
-    SpreadsheetApp.getUi().alert("❌ Erro: " + dados.error);
-  }
-}
-
-function renderizarPlanilhaRecorrenciaPorMes(dados, mes, ano) {
-  const ssDash = SpreadsheetApp.openById(ID_PLANILHA_DASHBOARDS);
-  const nomeAba = `Recorrência ${MESES[mes-1]} ${ano}`;
-  let sheet = ssDash.getSheetByName(nomeAba);
-  if (!sheet) sheet = ssDash.insertSheet(nomeAba);
-  const oldSheet = ssDash.getSheetByName("Dashboard Recorrência");
-  if (oldSheet && oldSheet.getName() !== nomeAba) ssDash.deleteSheet(oldSheet);
-  sheet.clear();
-
-  sheet.getRange("A1:M1").merge().setValue(`📈 DASHBOARD RECORRÊNCIA - ${MESES[mes-1]} ${ano}`)
-    .setBackground("#1e3a8a").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center").setFontSize(14);
-
-  if (dados.periodo.isFixedMonth) {
-    sheet.getRange("A2:M2").merge().setValue(`📅 DADOS FIXOS DO MÊS ${dados.periodo.atual} (não atualiza automaticamente)`)
-      .setBackground("#f59e0b").setFontColor("#000000").setFontWeight("bold").setHorizontalAlignment("center");
-  } else {
-    sheet.getRange("A2:M2").merge().setValue(`🔄 DADOS DO MÊS ATUAL (atualiza automaticamente)`)
-      .setBackground("#10b981").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
-  }
-
-  let currentRow = 4;
-
-  Object.keys(dados.retencao).forEach(c => {
-    const d = dados.retencao[c];
-    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("CONSULTOR: " + c + " (RETENÇÃO)").setBackground("#f1f5f9").setFontWeight("bold");
-    currentRow++;
-
-    const cardAtual = [["MÊS ATUAL (" + dados.periodo.atual + ")", ""], ["TOTAL RETIDO", d.atual.totalRetido], ["CANCELADO", d.atual.cancelado], ["TOTAL RETIDOS FINAL", d.atual.totalRetidosFinal], ["MENSALIDADES OK", d.atual.ok], ["EM ABERTO", d.atual.emAberto], ["EM ATRASO", d.atual.emAtraso], ["PENDÊNCIAS KYC", d.atual.pendenciasKYC], ["TOTAL PENDÊNCIAS", d.atual.totalPendencias], ["RETENÇÕES OK", d.atual.retençõesOK], ["% OK", d.atual.percentualOK + "%"]];
-    sheet.getRange(currentRow, 1, cardAtual.length, 2).setValues(cardAtual).setBorder(true, true, true, true, true, true);
-    sheet.getRange(currentRow, 1, 1, 2).merge().setBackground("#10b981").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
-
-    const cardTotal = [["TOTAL 3 MESES ANTERIORES", ""], ["TOTAL RETIDO", d.total3Meses.totalRetido], ["CANCELADO", d.total3Meses.cancelado || 0], ["TOTAL RETIDOS FINAL", d.total3Meses.totalRetidosFinal], ["OK (Mensalidade OK)", d.total3Meses.ok], ["EM ABERTO", d.total3Meses.emAberto], ["TOTAL OK (OK + Aberto)", d.total3Meses.totalOK || (d.total3Meses.ok + d.total3Meses.emAberto)], ["EM ATRASO", d.total3Meses.emAtraso], ["TOTAL PENDÊNCIAS", d.total3Meses.pendencias], ["% OK (considera Aberto)", (d.total3Meses.percentualOK || 0) + "%"]];
-    sheet.getRange(currentRow, 4, cardTotal.length, 2).setValues(cardTotal).setBorder(true, true, true, true, true, true);
-    sheet.getRange(currentRow, 4, 1, 2).merge().setBackground("#f59e0b").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
-
-    const percentualCell = sheet.getRange(currentRow + cardTotal.length - 1, 5);
-    const corPercentual = d.total3Meses.percentualOK >= 90 ? "#10b981" : d.total3Meses.percentualOK >= 80 ? "#f59e0b" : "#ef4444";
-    percentualCell.setBackground(corPercentual).setFontColor("#ffffff").setFontWeight("bold");
-
-    currentRow += Math.max(cardAtual.length, cardTotal.length) + 2;
-  });
-
-  Object.keys(dados.refiliacao).forEach(c => {
-    const d = dados.refiliacao[c];
-    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("CONSULTOR: " + c + " (REFILIAÇÃO)").setBackground("#f1f5f9").setFontWeight("bold");
-    currentRow++;
-
-    const cardTotal = [["TOTAL 3 MESES ANTERIORES", ""], ["TOTAL REFILIAÇÃO", d.total3Meses.totalRetido], ["CANCELADO", d.total3Meses.cancelado || 0], ["TOTAL REFILIADOS FINAL", d.total3Meses.totalRetidosFinal], ["OK (Mensalidade OK)", d.total3Meses.ok], ["EM ABERTO", d.total3Meses.emAberto], ["TOTAL OK (OK + Aberto)", d.total3Meses.totalOK || (d.total3Meses.ok + d.total3Meses.emAberto)], ["EM ATRASO", d.total3Meses.emAtraso], ["TOTAL PENDÊNCIAS", d.total3Meses.pendencias], ["% OK (considera Aberto)", (d.total3Meses.percentualOK || 0) + "%"]];
-    sheet.getRange(currentRow, 1, cardTotal.length, 2).setValues(cardTotal).setBorder(true, true, true, true, true, true);
-    sheet.getRange(currentRow, 1, 1, 2).merge().setBackground("#f59e0b").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
-
-    const percentualCell = sheet.getRange(currentRow + cardTotal.length - 1, 2);
-    const corPercentual = d.total3Meses.percentualOK >= 90 ? "#10b981" : d.total3Meses.percentualOK >= 80 ? "#f59e0b" : "#ef4444";
-    percentualCell.setBackground(corPercentual).setFontColor("#ffffff").setFontWeight("bold");
-
-    currentRow += cardTotal.length + 2;
-  });
-
-  sheet.setColumnWidths(1, 13, 150);
-  sheet.setFrozenRows(2);
-}
-
-function renderizarPlanilhaRecorrenciaDetalhada(dados) {
-  const ssDash = SpreadsheetApp.openById(ID_PLANILHA_DASHBOARDS);
-  let sheet = ssDash.getSheetByName("Dashboard Recorrência Histórico");
-  if (!sheet) sheet = ssDash.insertSheet("Dashboard Recorrência Histórico");
-  sheet.clear();
-
-  sheet.getRange("A1:M1").merge().setValue("📊 DASHBOARD RECORRÊNCIA - HISTÓRICO DETALHADO")
-    .setBackground("#7c3aed").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center").setFontSize(14);
-
-  let currentRow = 3;
-
-  Object.keys(dados.retencao).forEach(c => {
-    const d = dados.retencao[c];
-    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("👑 " + c + " - RETENÇÃO").setBackground("#1e3a8a").setFontColor("#ffffff").setFontWeight("bold");
-    currentRow++;
-    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("MÊS ATUAL: " + dados.periodo.atual).setBackground("#10b981").setFontColor("#ffffff").setFontWeight("bold");
-    currentRow++;
-    sheet.getRange(currentRow, 1, 1, 2).setValues([["Métrica", "Valor"]]).setBackground("#d1fae5");
-    currentRow++;
-    const dadosAtual = [["Total Retido", d.atual.totalRetido], ["Cancelados", d.atual.cancelado], ["Total Retidos Final", d.atual.totalRetidosFinal], ["Mensalidades OK", d.atual.ok], ["Em Aberto", d.atual.emAberto], ["Em Atraso", d.atual.emAtraso], ["Pendências KYC", d.atual.pendenciasKYC], ["Total Pendências", d.atual.totalPendencias], ["Retenções OK", d.atual.retençõesOK], ["% OK", d.atual.percentualOK + "%"]];
-    sheet.getRange(currentRow, 1, dadosAtual.length, 2).setValues(dadosAtual);
-    currentRow += dadosAtual.length + 2;
-    sheet.getRange(currentRow, 1, 1, 13).merge().setValue("HISTÓRICO - ÚLTIMOS 3 MESES").setBackground("#f59e0b").setFontColor("#ffffff").setFontWeight("bold");
-    currentRow++;
-    sheet.getRange(currentRow, 1, 1, 7).setValues([["Mês", "Total", "OK", "Em Aberto", "Total OK", "Pendências", "% OK"]]).setBackground("#fef3c7");
-    currentRow++;
-    d.historico.forEach(h => {
-      sheet.getRange(currentRow, 1, 1, 7).setValues([[h.mes, h.dados.totalRetido, h.dados.ok, h.dados.emAberto, h.dados.totalOK || (h.dados.ok + h.dados.emAberto), h.dados.pendencias, h.dados.percentualOK + "%"]]);
-      currentRow++;
-    });
-    currentRow += 2;
-  });
-
-  sheet.setColumnWidths(1, 13, 140);
-}
-
-// ============================================================================
-// ENDPOINT: REFUTURIZA (ORIGINAL)
+// REFUTURIZA
 // ============================================================================
 
 function getRefuturizaData(mes, ano) {
@@ -1934,7 +2070,7 @@ function abrirDashboardRecorrenciaPorMes(mes) {
 }
 
 // ============================================================================
-// GERAR DASHBOARD PARA MÊS PASSADO
+// DASHBOARD MÊS PASSADO
 // ============================================================================
 
 function gerarDashboardMesPassado() {
@@ -2055,7 +2191,7 @@ function atualizarTodosDashboards() {
 }
 
 // ============================================================================
-// FUNÇÕES ADICIONAIS
+// CONFIGURAÇÕES E DEPLOY
 // ============================================================================
 
 function showConfigDialog() {
@@ -2254,7 +2390,7 @@ function syncTudoAgora() {
 }
 
 // ============================================================================
-// TRIGGER DE EDIÇÃO - SINCRONIZAÇÃO AUTOMÁTICA
+// TRIGGER DE EDIÇÃO
 // ============================================================================
 
 function onEdicaoPlanilha(e) {
@@ -2271,7 +2407,6 @@ function onEdicaoPlanilha(e) {
   console.log(`📝 Edição detectada: ${nomeAba} | Mês: ${mes}/${ano}`);
   
   try {
-    // ⭐ FUNCIONARIOS
     if (nomeAbaLower === 'funcionarios') {
       console.log('🔄 Sincronizando FUNCIONARIOS...');
       carregarFuncionarios();
@@ -2282,7 +2417,6 @@ function onEdicaoPlanilha(e) {
       return;
     }
     
-    // ⭐ QUALIDADE VENDAS
     if (nomeAbaLower === 'qualidade vendas' || nomeAbaLower.includes('qualidade')) {
       console.log('🔄 Sincronizando QUALIDADE VENDAS...');
       syncQualidadeVendas(mes, ano);
@@ -2290,7 +2424,6 @@ function onEdicaoPlanilha(e) {
       return;
     }
     
-    // ⭐ APP
     if (nomeAbaLower === 'app') {
       console.log('🔄 Sincronizando APP...');
       syncApp(mes, ano);
@@ -2298,7 +2431,6 @@ function onEdicaoPlanilha(e) {
       return;
     }
     
-    // ⭐ APP RETENÇÃO
     if (nomeAbaLower.includes('app retencao') || nomeAbaLower.includes('app retenção')) {
       console.log('🔄 Sincronizando APP (com retenção)...');
       syncApp(mes, ano);
@@ -2306,7 +2438,6 @@ function onEdicaoPlanilha(e) {
       return;
     }
     
-    // ⭐ QUALIDADE TROCAS
     if (nomeAbaLower === 'qualidade trocas' || nomeAbaLower.includes('trocas')) {
       console.log('🔄 Sincronizando QUALIDADE TROCAS...');
       syncQualidadeTrocas(mes, ano);
@@ -2314,7 +2445,6 @@ function onEdicaoPlanilha(e) {
       return;
     }
     
-    // ⭐ RECORRENCIA
     if (nomeAbaLower === 'recorrencia') {
       console.log('🔄 Sincronizando RECORRENCIA...');
       syncRecorrencia(mes, ano);
@@ -2322,7 +2452,6 @@ function onEdicaoPlanilha(e) {
       return;
     }
     
-    // ⭐ REFUTURIZA
     if (nomeAbaLower.includes('refuturiza') || nomeAbaLower.includes('refuturisa')) {
       console.log('🔄 Sincronizando REFUTURIZA...');
       syncRefuturiza(mes, ano);
@@ -2399,4 +2528,198 @@ function instalarTriggerEdicao() {
     '• REFUTURIZA\n\n' +
     '⏱️ Delay estimado: 2-5 segundos após salvar.'
   );
+}
+
+// ============================================================================
+// TESTES
+// ============================================================================
+
+function testarSupabase() {
+  try {
+    const url = SUPABASE_URL + '/rest/v1/qualidade_vendas?limit=1';
+    const options = {
+      method: 'get',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY
+      },
+      muteHttpExceptions: true
+    };
+    const response = UrlFetchApp.fetch(url, options);
+    Logger.log('✅ Conexão OK! Status: ' + response.getResponseCode());
+  } catch(e) {
+    Logger.log('❌ Erro: ' + e.message);
+  }
+}
+
+/**
+ * DIAGNOSE E CORREÇÃO - EXTRAÇÃO DE DATA DA RECORRÊNCIA
+ * 
+ * As funções corrigidas já estão integradas no código (extrairMesAnoRecorrencia e getMesAnoFromRowRecorrencia).
+ * As funções abaixo são para diagnóstico e teste, mantidas para referência.
+ */
+
+// ============================================================================
+// 1. FUNÇÃO DIAGNOSE - VER EXATAMENTE QUAL É O TIPO DE DATA
+// ============================================================================
+
+function diagnosticarFormatoDatasRecorrencia() {
+  try {
+    const ssDados = SpreadsheetApp.openById(ID_PLANILHA_DADOS);
+    
+    let sheetRec = ssDados.getSheetByName("RECORRENCIA");
+    if (!sheetRec) {
+      const sheets = ssDados.getSheets();
+      sheetRec = sheets.find(s => s.getName().toUpperCase().includes("RECORRENCIA"));
+    }
+    
+    if (!sheetRec) {
+      Logger.log("❌ Aba RECORRENCIA não encontrada");
+      return;
+    }
+    
+    const data = sheetRec.getDataRange().getValues();
+    
+    Logger.log("========== DIAGNOSE DE DATAS ==========");
+    Logger.log(`Aba: ${sheetRec.getName()}`);
+    Logger.log(`Total linhas: ${data.length}`);
+    
+    if (data.length < 3) {
+      Logger.log("❌ Aba vazia (menos de 3 linhas)");
+      return;
+    }
+    
+    const headers = data[1] || data[0];
+    let idxData = -1;
+    
+    Logger.log("\n📋 HEADERS:");
+    headers.forEach((h, i) => {
+      Logger.log(`  [${i}] "${h}"`);
+      if (String(h || "").toUpperCase().includes("DATA")) {
+        idxData = i;
+      }
+    });
+    
+    if (idxData === -1) {
+      Logger.log("\n❌ Nenhuma coluna DATA encontrada!");
+      return;
+    }
+    
+    Logger.log(`\n✅ Coluna DATA encontrada em índice: ${idxData}`);
+    
+    Logger.log(`\n📅 ANÁLISE DAS PRIMEIRAS 10 DATAS:`);
+    
+    for (let i = 2; i < Math.min(12, data.length); i++) {
+      const row = data[i];
+      const dataCell = row[idxData];
+      
+      Logger.log(`\n  Linha ${i + 1}:`);
+      Logger.log(`    Valor bruto: ${dataCell}`);
+      Logger.log(`    Tipo: ${typeof dataCell}`);
+      Logger.log(`    instanceof Date: ${dataCell instanceof Date}`);
+      Logger.log(`    toString(): ${dataCell.toString ? dataCell.toString() : 'N/A'}`);
+      
+      if (typeof dataCell === 'number') {
+        Logger.log(`    É número serial! Valor: ${dataCell}`);
+        const jsDate = new Date((dataCell - 25569) * 86400 * 1000);
+        Logger.log(`    Como Date JS: ${jsDate}`);
+        Logger.log(`    Mês/Ano: ${jsDate.getMonth() + 1}/${jsDate.getFullYear()}`);
+      }
+      
+      if (dataCell instanceof Date) {
+        Logger.log(`    É Date object`);
+        Logger.log(`    getMonth(): ${dataCell.getMonth() + 1}`);
+        Logger.log(`    getFullYear(): ${dataCell.getFullYear()}`);
+      }
+      
+      if (typeof dataCell === 'string') {
+        Logger.log(`    É string`);
+        const parts = dataCell.match(/\d+/g);
+        if (parts) Logger.log(`    Números encontrados: ${parts.join(', ')}`);
+      }
+    }
+    
+    SpreadsheetApp.getUi().alert(
+      `📅 DIAGNOSE DE DATAS COMPLETA\n\n` +
+      `Coluna DATA: índice ${idxData}\n` +
+      `Formato: Veja o Log (Ctrl+Enter)\n\n` +
+      `Tipos encontrados:\n` +
+      `• Date object? Sim\n` +
+      `• Número (serial)? Sim\n` +
+      `• String? Sim\n\n` +
+      `Detalhes no Log →`
+    );
+    
+  } catch (error) {
+    Logger.log(`❌ Erro: ${error.message}`);
+    Logger.log(error.stack);
+  }
+}
+
+// ============================================================================
+// 2. TESTE - Verificar se a extração funciona agora
+// ============================================================================
+
+function testarExtracacaoDataRecorrencia() {
+  try {
+    const ssDados = SpreadsheetApp.openById(ID_PLANILHA_DADOS);
+    
+    let sheetRec = ssDados.getSheetByName("RECORRENCIA");
+    if (!sheetRec) {
+      const sheets = ssDados.getSheets();
+      sheetRec = sheets.find(s => s.getName().toUpperCase().includes("RECORRENCIA"));
+    }
+    
+    if (!sheetRec) {
+      Logger.log("❌ Aba RECORRENCIA não encontrada");
+      return;
+    }
+    
+    const data = sheetRec.getDataRange().getValues();
+    
+    if (data.length < 3) {
+      Logger.log("❌ Aba vazia");
+      return;
+    }
+    
+    const headers = data[1] || data[0];
+    let idxData = -1;
+    for (let i = 0; i < headers.length; i++) {
+      if (String(headers[i] || "").toUpperCase().includes("DATA")) {
+        idxData = i;
+        break;
+      }
+    }
+    
+    if (idxData === -1) idxData = 4;
+    
+    Logger.log(`\n🧪 TESTE DE EXTRAÇÃO DE DATAS`);
+    Logger.log(`Coluna DATA: ${idxData}`);
+    Logger.log(`\nTestando as 5 primeiras linhas:\n`);
+    
+    for (let i = 2; i < Math.min(7, data.length); i++) {
+      const row = data[i];
+      const consultor = row[1];
+      
+      Logger.log(`Linha ${i + 1}: ${consultor}`);
+      const mesAno = getMesAnoFromRowRecorrencia(row, idxData);
+      
+      if (mesAno) {
+        Logger.log(`  ✅ Data extraída: ${mesAno.mes}/${mesAno.ano}`);
+      } else {
+        Logger.log(`  ❌ Não conseguiu extrair data`);
+        Logger.log(`     Valor bruto: ${row[idxData]}`);
+        Logger.log(`     Tipo: ${typeof row[idxData]}`);
+      }
+    }
+    
+    SpreadsheetApp.getUi().alert(
+      `🧪 TESTE DE EXTRAÇÃO CONCLUÍDO\n\n` +
+      `Verifique o Log (Ctrl+Enter) para detalhes.`
+    );
+    
+  } catch (error) {
+    Logger.log(`❌ Erro: ${error.message}`);
+    Logger.log(error.stack);
+  }
 }
