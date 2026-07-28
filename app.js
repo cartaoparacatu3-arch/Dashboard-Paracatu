@@ -1220,3 +1220,28 @@ async function exportPage(){
     finally{ btn.innerHTML=orig; btn.disabled=false; }
 }
 function getMonthName(m){ return ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m-1]; }
+
+// ── Ajuste responsivo de gráficos ──────────────────────────────────────────
+function adjustChartHeights() {
+    const isMobile = window.innerWidth <= 768;
+    const isTiny = window.innerWidth <= 480;
+    const chartWraps = document.querySelectorAll('.chart-wrap');
+    chartWraps.forEach(wrap => {
+        if (isTiny) wrap.style.height = '120px';
+        else if (isMobile) wrap.style.height = '140px';
+        else wrap.style.height = '180px';
+    });
+}
+
+// Chamar após renderização e ao redimensionar
+window.addEventListener('resize', () => {
+    adjustChartHeights();
+    // Re-renderizar gráficos se necessário (opcional)
+});
+
+// Modifique a função renderDashboard para chamar adjustChartHeights() no final
+const originalRenderDashboard = renderDashboard;
+renderDashboard = function() {
+    originalRenderDashboard();
+    setTimeout(adjustChartHeights, 100);
+};
