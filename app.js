@@ -204,11 +204,11 @@ function rowToData(endpoint, row) {
             mes: row.mes || 'Julho',
             ano: row.ano || 2026,
             geral: { 
-                total: (row.geral?.total || 0) > 0 ? row.geral.total : totalCalc,
-                sim: (row.geral?.sim || 0) > 0 ? row.geral.sim : simCalc,
-                nao: row.geral?.nao || 0,
-                cancelado: row.geral?.cancelado || 0,
-                outros: row.geral?.outros || 0
+                total: (row.geral?.total || 0) > 0 ? row.geral.total : (row.geral_total || totalCalc),
+                sim: (row.geral?.sim || 0) > 0 ? row.geral.sim : (row.geral_sim || simCalc),
+                nao: row.geral?.nao || row.geral_nao || 0,
+                cancelado: row.geral?.cancelado || row.geral_cancelado || 0,
+                outros: row.geral?.outros || row.geral_outros || 0
             },
             appLoja: { 
                 total: row.appLoja?.total || row.loja_total || 0,
@@ -576,13 +576,21 @@ function renderDashboard(){
         showError('Dados indisponíveis. Tente atualizar a página.', true);
         return;
     }
-    switch(currentDashboard){
-        case 'documentacao':         renderDocumentacaoDashboard(data);        break;
-        case 'app':                  renderAppDashboard(data);                 break;
-        case 'adimplencia':          renderAdimplenciaDashboard(data);         break;
-        case 'recorrencia':          renderRecorrenciaDashboard(data);         break;
-        case 'refuturiza':           renderRefuturizaDashboard(data);          break;
-        default: showError('Dashboard não encontrado: ' + currentDashboard);
+    // 🔧 CORREÇÃO: qualquer erro durante a renderização de uma aba específica
+    // agora é capturado aqui e exibe uma tela de erro, em vez de deixar o
+    // dashboard "travado" mostrando o conteúdo da última aba renderizada com sucesso.
+    try {
+        switch(currentDashboard){
+            case 'documentacao':         renderDocumentacaoDashboard(data);        break;
+            case 'app':                  renderAppDashboard(data);                 break;
+            case 'adimplencia':          renderAdimplenciaDashboard(data);         break;
+            case 'recorrencia':          renderRecorrenciaDashboard(data);         break;
+            case 'refuturiza':           renderRefuturizaDashboard(data);          break;
+            default: showError('Dashboard não encontrado: ' + currentDashboard);
+        }
+    } catch (err) {
+        console.error(`[renderDashboard] Erro ao renderizar "${currentDashboard}":`, err);
+        showError('Ocorreu um erro ao exibir os dados desta aba.', true);
     }
 }
 
@@ -598,13 +606,13 @@ async function loadResumoDashboard(){
 
     if(allCached){
         eps.forEach(ep => { results[ep] = getCached(cacheKey(ep, currentMonth, currentYear)); });
-        renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
+        safeRenderResumo(results);
         updateLastUpdateTime();
         Promise.all(eps.map(async ep => {
             const r = await fetchData(ep, currentMonth, currentYear);
             if(r.status==='success'){ setCache(cacheKey(ep,currentMonth,currentYear), r.data); results[ep]=r.data; }
         })).then(() => {
-            if(results['documentacao']) renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
+            if(results['documentacao']) safeRenderResumo(results);
         }).catch(_=>{});
         return;
     }
@@ -626,8 +634,20 @@ async function loadResumoDashboard(){
         showError('Não foi possível carregar os dados de Vendas. Verifique a conexão e tente novamente.', true);
         return;
     }
-    renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
+    safeRenderResumo(results);
     updateLastUpdateTime();
+}
+
+// 🔧 CORREÇÃO: wrapper que captura erros de renderResumoDashboard (ex: dado
+// parcial vindo de alguma aba) e exibe uma tela de erro em vez de travar
+// mostrando o conteúdo da última aba renderizada com sucesso.
+function safeRenderResumo(results){
+    try{
+        renderResumoDashboard(results['documentacao'], results['app'], results['adimplencia']);
+    }catch(err){
+        console.error('[safeRenderResumo] Erro ao renderizar Resumo:', err);
+        showError('Ocorreu um erro ao exibir o Resumo Geral.', true);
+    }
 }
 
 function updateLastUpdateTime(){
@@ -874,7 +894,15 @@ function renderAppDashboard(d){
         return;
     }
 
-    const {geral, appLoja, appWeb, consultores = [], consultorasRetencao = [], mes, ano} = d;
+    const DEFAULT_APP_BLOCK = {total:0, sim:0, nao:0, cancelado:0, outros:0};
+    const {
+        geral = DEFAULT_APP_BLOCK,
+        appLoja = DEFAULT_APP_BLOCK,
+        appWeb = DEFAULT_APP_BLOCK,
+        consultores = [],
+        consultorasRetencao = [],
+        mes, ano
+    } = d;
 
     const pG = calcPercent(geral.sim, geral.total);
     const pL = calcPercent(appLoja.sim, appLoja.total);
