@@ -1676,3 +1676,85 @@ select:focus {
     .card { break-inside: avoid; box-shadow: none; }
     .chart-wrap { height: 150px; }
 }
+/* ============================================================
+   TEMAS SAZONAIS
+   ============================================================ */
+
+/* 🌟 BLACK FRIDAY (MÊS 11) */
+body.tema-black-friday {
+    --primary: #111111;       /* Preto principal */
+    --primary-dark: #000000;  /* Preto mais escuro */
+    --primary-light: #333333; /* Cinza escuro para fundos de cartões */
+    --accent: #f59e0b;        /* Amarelo/Dourado para destaque */
+    --accent-dark: #d97706;
+}
+
+body.tema-black-friday .sidebar {
+    background: #0a0a0a;
+    border-right: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+body.tema-black-friday .sidebar::after {
+    background: linear-gradient(180deg, #f59e0b 0%, rgba(245, 158, 11, 0.3) 40%, transparent 100%);
+}
+
+body.tema-black-friday .topbar {
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+}
+
+body.tema-black-friday .topbar-title,
+body.tema-black-friday .kpi-value,
+body.tema-black-friday .metric-value,
+body.tema-black-friday .dash-title {
+    color: #111;
+}
+body.tema-black-friday .topbar-title {
+    color: #f59e0b;
+}
+
+body.tema-black-friday .sidebar-btn.active {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+body.tema-black-friday .sidebar-btn.active .sidebar-btn-icon {
+    color: #f59e0b;
+}
+
+/* 🎄 NATAL (MÊS 12) */
+body.tema-natal {
+    --primary: #b91c1c;       /* Vermelho natalino */
+    --primary-dark: #7f1d1d;  /* Vermelho escuro */
+    --primary-light: #fee2e2; /* Vermelho bem claro para fundos */
+    --accent: #15803d;        /* Verde natalino */
+    --accent-dark: #166534;
+}
+
+body.tema-natal .sidebar {
+    background: #0a1f0f; /* Verde escuro profundo */
+    border-right: 1px solid rgba(185, 28, 28, 0.3);
+}
+
+body.tema-natal .sidebar::after {
+    background: linear-gradient(180deg, #b91c1c 0%, rgba(185, 28, 28, 0.3) 40%, transparent 100%);
+}
+
+body.tema-natal .sidebar-btn.active {
+    background: rgba(185, 28, 28, 0.2);
+    color: #fca5a5;
+    box-shadow: inset 3px 0 0 #b91c1c;
+}
+
+body.tema-natal .sidebar-btn.active .sidebar-btn-icon {
+    color: #fca5a5;
+}
+
+body.tema-natal .topbar {
+    border-bottom: 3px solid #15803d; /* Detalhe verde no topo */
+}
+
+/* Elementos que usam a cor primária dinamicamente (Gráficos e Cards) */
+body.tema-black-friday .kpi-icon { background: rgba(245, 158, 11, 0.1) !important; color: #f59e0b !important; }
+body.tema-natal .kpi-icon { background: rgba(185, 28, 28, 0.1) !important; color: #b91c1c !important; }
