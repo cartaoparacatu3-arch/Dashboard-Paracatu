@@ -1,5 +1,5 @@
 // ============================================================================
-// DASHBOARD V21.3 - app.js — PARTE 1
+// DASHBOARD V21.4 - app.js — PARTE 1
 // ============================================================================
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbw1BfUIRmc4yIPN0UKvQdXSHspeiPDlYQTnauphflE7uOaKTI_w3JxvSXNkSySvHvymfw/exec';
@@ -57,7 +57,7 @@ const SUPABASE_TABLES = {
     'recorrencia': 'recorrencia',
     'refuturiza': 'refuturiza',
     'vendas_tim': 'vendas_tim',
-    'energia_solar': 'energia_solar' // <-- NOVA TABELA AQUI
+    'energia_solar': 'energia_solar'
 };
 
 async function fetchSupabase(endpoint, mes, ano) {
@@ -258,6 +258,14 @@ let currentYear      = new Date().getFullYear();
 const chartInstances = {};
 let dashboardBtns, monthSelect, yearSelect, dashboardContent, refreshBtn, downloadBtn, loadingEl, lastUpdateEl, periodSelector;
 
+// --- FUNÇÃO DE TEMA SAZONAL ---
+function aplicarTemaSazonal(mes) {
+    const body = document.body;
+    body.classList.remove('tema-black-friday', 'tema-natal');
+    if (mes === 11) body.classList.add('tema-black-friday');
+    else if (mes === 12) body.classList.add('tema-natal');
+}
+
 document.addEventListener('DOMContentLoaded', function(){
     Chart.defaults.font.family="'Plus Jakarta Sans', sans-serif";
     Chart.defaults.font.size=12; Chart.defaults.color='#5a7a65';
@@ -275,6 +283,9 @@ document.addEventListener('DOMContentLoaded', function(){
     const anoAtual = new Date().getFullYear();
     for(let y = anoAtual; y >= anoAtual - 3; y--){ const opt = document.createElement('option'); opt.value = y; opt.textContent = y; yearSelect.appendChild(opt); }
     monthSelect.value = currentMonth; yearSelect.value = currentYear;
+    
+    // APLICA O TEMA AO CARREGAR
+    aplicarTemaSazonal(currentMonth);
 
     const topbarTitle = document.getElementById('topbarTitle');
     const TITLES = { resumo: 'Resumo Geral', documentacao: 'Vendas', app: 'App', adimplencia: 'Trocas', recorrencia: 'Recorrência', refuturiza: 'Refuturiza', vendas_tim: 'Vendas TIM', energia_solar: 'Energia Solar' };
@@ -290,7 +301,13 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     });
 
-    monthSelect.addEventListener('change', () => { currentMonth = parseInt(monthSelect.value); loadDashboard(); });
+    // APLICA O TEMA AO TROCAR DE MÊS
+    monthSelect.addEventListener('change', () => { 
+        currentMonth = parseInt(monthSelect.value); 
+        aplicarTemaSazonal(currentMonth); 
+        loadDashboard(); 
+    });
+    
     yearSelect.addEventListener('change',  () => { currentYear  = parseInt(yearSelect.value);  loadDashboard(); });
     refreshBtn.addEventListener('click',   () => { invalidateCache(cacheKey(currentDashboard, currentMonth, currentYear)); loadDashboard(); });
     downloadBtn.addEventListener('click',  exportPage);
@@ -343,7 +360,7 @@ function renderDashboard(){
         case 'recorrencia': renderRecorrenciaDashboard(data); break;
         case 'refuturiza': renderRefuturizaDashboard(data); break;
         case 'vendas_tim': renderVendasTimDashboard(data); break;
-        case 'energia_solar': renderEnergiaSolarDashboard(data); break; // <-- NOVO CASE
+        case 'energia_solar': renderEnergiaSolarDashboard(data); break;
         default: showError('Dashboard não encontrado: ' + currentDashboard);
     }
 }
@@ -584,7 +601,7 @@ function initPeriodModal(){
     function closeModal(){ modal.classList.remove('open'); document.body.style.overflow = ''; }
 
     fab.addEventListener('click', openModal); document.getElementById('periodModalBackdrop').addEventListener('click', closeModal);
-    document.getElementById('applyPeriodBtn').addEventListener('click', () => { const mm = document.getElementById('monthSelectMobile'); const ym = document.getElementById('yearSelectMobile'); currentMonth = parseInt(mm.value); currentYear = parseInt(ym.value); if(monthSelect) monthSelect.value = currentMonth; if(yearSelect) yearSelect.value = currentYear; closeModal(); loadDashboard(); });
+    document.getElementById('applyPeriodBtn').addEventListener('click', () => { const mm = document.getElementById('monthSelectMobile'); const ym = document.getElementById('yearSelectMobile'); currentMonth = parseInt(mm.value); currentYear = parseInt(ym.value); if(monthSelect) monthSelect.value = currentMonth; if(yearSelect) yearSelect.value = currentYear; aplicarTemaSazonal(currentMonth); closeModal(); loadDashboard(); });
     function updateFabVisibility(){ fab.style.display = SEM_FILTRO.includes(currentDashboard) ? 'none' : 'flex'; }
     updateFabVisibility(); window.updateFabVisibility = updateFabVisibility;
 }
