@@ -1,5 +1,5 @@
 // ============================================================================
-// DASHBOARD V21.2 - app.js — PARTE 1
+// DASHBOARD V21.3 - app.js — PARTE 1
 // ============================================================================
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbw1BfUIRmc4yIPN0UKvQdXSHspeiPDlYQTnauphflE7uOaKTI_w3JxvSXNkSySvHvymfw/exec';
@@ -56,7 +56,8 @@ const SUPABASE_TABLES = {
     'adimplencia': 'qualidade_trocas',
     'recorrencia': 'recorrencia',
     'refuturiza': 'refuturiza',
-    'vendas_tim': 'vendas_tim'
+    'vendas_tim': 'vendas_tim',
+    'energia_solar': 'energia_solar' // <-- NOVA TABELA AQUI
 };
 
 async function fetchSupabase(endpoint, mes, ano) {
@@ -185,6 +186,24 @@ function rowToData(endpoint, row) {
         };
     }
 
+    if (endpoint === 'energia_solar') {
+        let consultores = row.consultores || [];
+        if (typeof consultores === 'string') { try { consultores = JSON.parse(consultores); } catch(e) { consultores = []; } }
+        if (!Array.isArray(consultores)) consultores = [];
+        
+        return {
+            mes: row.mes_nome || 'Mês', ano: row.ano,
+            geral: {
+                total: row.geral_total || 0,
+                homologados: row.geral_homologados || 0,
+                naoHomologados: row.geral_nao_homologados || 0,
+                pctHomologacao: row.geral_total > 0 ? Math.round((row.geral_homologados / row.geral_total) * 100) : 0
+            },
+            consultores: consultores,
+            totalConsultores: consultores.length
+        };
+    }
+
     return null;
 }
 
@@ -203,7 +222,7 @@ async function fetchData(endpoint, mes, ano) {
 }
 
 function buildUrl(ep, m, y) {
-    const endpointMap = { 'documentacao': 'qualidade_vendas', 'app': 'app_dashboard', 'adimplencia': 'qualidade_trocas', 'recorrencia': 'recorrencia', 'refuturiza': 'refuturiza', 'vendas_tim': 'vendas_tim' };
+    const endpointMap = { 'documentacao': 'qualidade_vendas', 'app': 'app_dashboard', 'adimplencia': 'qualidade_trocas', 'recorrencia': 'recorrencia', 'refuturiza': 'refuturiza', 'vendas_tim': 'vendas_tim', 'energia_solar': 'energia_solar' };
     const endpointReal = endpointMap[ep] || ep;
     let u = `${API_URL}?endpoint=${endpointReal}`;
     if (!SEM_FILTRO.includes(ep)) u += `&mes=${m}&ano=${y}`;
@@ -258,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function(){
     monthSelect.value = currentMonth; yearSelect.value = currentYear;
 
     const topbarTitle = document.getElementById('topbarTitle');
-    const TITLES = { resumo: 'Resumo Geral', documentacao: 'Vendas', app: 'App', adimplencia: 'Trocas', recorrencia: 'Recorrência', refuturiza: 'Refuturiza', vendas_tim: 'Vendas TIM' };
+    const TITLES = { resumo: 'Resumo Geral', documentacao: 'Vendas', app: 'App', adimplencia: 'Trocas', recorrencia: 'Recorrência', refuturiza: 'Refuturiza', vendas_tim: 'Vendas TIM', energia_solar: 'Energia Solar' };
 
     dashboardBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -324,6 +343,7 @@ function renderDashboard(){
         case 'recorrencia': renderRecorrenciaDashboard(data); break;
         case 'refuturiza': renderRefuturizaDashboard(data); break;
         case 'vendas_tim': renderVendasTimDashboard(data); break;
+        case 'energia_solar': renderEnergiaSolarDashboard(data); break; // <-- NOVO CASE
         default: showError('Dashboard não encontrado: ' + currentDashboard);
     }
 }
@@ -459,6 +479,51 @@ function renderVendasTimDashboard(d) {
     const { geral, vendedores, mes, ano } = d; const pA = geral.pctAtivacao; const pP = geral.pctPortabilidade;
 
     dashboardContent.innerHTML = `<h2 class="dash-title"><i class="fas fa-sim-card" style="color:var(--primary)"></i> Dashboard Vendas TIM — ${mes} ${ano}</h2><div class="main-cards" style="max-width: 600px; margin: 0 auto 28px;"><div class="card card-doc" style="border-top: 3px solid var(--primary)"><div class="card-header"><div class="card-title">Total Geral TIM</div><div class="card-icon"><i class="fas fa-chart-pie"></i></div></div><div class="metric-grid">${metricItem('Total Vendas', geral.total)}${metricItem('Ativação', geral.ativacao, 'var(--success)')}${metricItem('Portabilidade', geral.portabilidade, 'var(--info)')}${metricPercent('% Ativação', pA)}${metricPercent('% Portabilidade', pP)}</div></div></div><h3 class="section-title"><i class="fas fa-users" style="color:var(--primary)"></i> Desempenho por Vendedor (${d.totalVendedores})</h3>${vendedores.length > 0 ? `<div class="consultant-grid">${vendedores.map(c => { return `<div class="consultant-card" style="border-left-color: #0054a6;"><div class="consultant-header"><div class="consultant-name">${c.nome}</div><div class="consultant-sector" style="background: rgba(0,84,166,0.1); color: #0054a6; text-transform: uppercase;">TIM</div></div><div class="metric-grid">${metricItem('Total Vendas', c.total)}${metricItem('Ativação', c.ativacao, 'var(--success)')}${metricItem('Portabilidade', c.portabilidade, 'var(--info)')}${metricPercent('% Ativação', c.pctAtivacao)}${metricPercent('% Portabilidade', c.pctPortabilidade)}</div></div>`; }).join('')}</div>` : `<div style="text-align:center;padding:40px;color:var(--gray)"><i class="fas fa-info-circle" style="font-size:2.5rem;margin-bottom:16px;display:block;"></i><h3>Nenhuma venda TIM registrada para ${mes} ${ano}</h3></div>`}`;
+}
+
+function renderEnergiaSolarDashboard(d) {
+    if (!d || !d.consultores) { dashboardContent.innerHTML = `<div class="error-message"><h3>Dados de Energia Solar não disponíveis</h3><button class="btn btn-topbar-refresh" onclick="loadDashboard()"><i class="fas fa-redo"></i> Tentar novamente</button></div>`; return; }
+    const { geral, consultores, mes, ano } = d; const pG = geral.pctHomologacao;
+
+    dashboardContent.innerHTML = `
+    <h2 class="dash-title"><i class="fas fa-solar-panel" style="color:#f59e0b"></i> Dashboard Energia Solar — ${mes} ${ano}</h2>
+    <div class="main-cards" style="max-width: 600px; margin: 0 auto 28px;">
+        <div class="card card-doc" style="border-top: 3px solid #f59e0b">
+            <div class="card-header">
+                <div class="card-title">Total Geral Energia Solar</div>
+                <div class="card-icon" style="color:#f59e0b"><i class="fas fa-solar-panel"></i></div>
+            </div>
+            <div class="metric-grid">
+                ${metricItem('Total Vendas', geral.total)}
+                ${metricItem('Homologados', geral.homologados, 'var(--success)')}
+                ${metricItem('Não Homologados', geral.naoHomologados, 'var(--danger)')}
+                ${metricPercent('% Homologação', pG)}
+            </div>
+        </div>
+    </div>
+    <h3 class="section-title"><i class="fas fa-users" style="color:#f59e0b"></i> Desempenho por Consultor (${d.totalConsultores})</h3>
+    ${consultores.length > 0 ? `
+    <div class="consultant-grid">
+        ${consultores.map(c => {
+            return `
+            <div class="consultant-card" style="border-left-color: #f59e0b;">
+                <div class="consultant-header">
+                    <div class="consultant-name">${c.nome}</div>
+                    <div class="consultant-sector" style="background: rgba(245,158,11,0.1); color: #d97706; text-transform: uppercase;">SOLAR</div>
+                </div>
+                <div class="metric-grid">
+                    ${metricItem('Total Vendas', c.total)}
+                    ${metricItem('Homologados', c.homologados, 'var(--success)')}
+                    ${metricItem('Não Homologados', c.naoHomologados, 'var(--danger)')}
+                    ${metricPercent('% Homologação', c.pctHomologacao)}
+                </div>
+            </div>`;
+        }).join('')}
+    </div>` : `
+    <div style="text-align:center;padding:40px;color:var(--gray)">
+        <i class="fas fa-info-circle" style="font-size:2.5rem;margin-bottom:16px;display:block;"></i>
+        <h3>Nenhuma venda de Energia Solar registrada para ${mes} ${ano}</h3>
+    </div>`}`;
 }
 
 function metricItem(l,v,c){ const s=c?`style="color:${c};"`:''; return `<div class="metric-item"><div class="metric-label">${l}</div><div class="metric-value" ${s}>${v??0}</div></div>`; }
