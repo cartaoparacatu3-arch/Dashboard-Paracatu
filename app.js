@@ -61,7 +61,8 @@ const SUPABASE_TABLES = {
     'app': 'app_dashboard',
     'adimplencia': 'qualidade_trocas',
     'recorrencia': 'recorrencia',
-    'refuturiza': 'refuturiza'
+    'refuturiza': 'refuturiza',
+    'vendas_tim': 'vendas_tim' // <-- ADICIONE AQUI
 };
 
 // ============================================================================
@@ -321,6 +322,31 @@ function rowToData(endpoint, row) {
             },
             consultores: consultores
         };
+
+        // Dentro da função rowToData(endpoint, row), adicione este bloco antes do return null final:
+
+    // --- vendas_tim ---
+    if (endpoint === 'vendas_tim') {
+        let vendedores = row.vendedores || [];
+        if (typeof vendedores === 'string') {
+            try { vendedores = JSON.parse(vendedores); } catch(e) { vendedores = []; }
+        }
+        if (!Array.isArray(vendedores)) vendedores = [];
+        
+        return {
+            mes: row.mes_nome || 'Mês',
+            ano: row.ano,
+            geral: {
+                total: row.geral_total || 0,
+                ativacao: row.geral_ativacao || 0,
+                portabilidade: row.geral_portabilidade || 0,
+                pctAtivacao: row.geral_total > 0 ? Math.round((row.geral_ativacao / row.geral_total) * 100) : 0,
+                pctPortabilidade: row.geral_total > 0 ? Math.round((row.geral_portabilidade / row.geral_total) * 100) : 0
+            },
+            vendedores: vendedores,
+            totalVendedores: vendedores.length
+        };
+    }
     }
 
     return null;
